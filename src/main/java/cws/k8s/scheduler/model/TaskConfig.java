@@ -30,6 +30,10 @@ public class TaskConfig {
      * Only for testing
      */
     public TaskConfig(String task) {
+        TaskConfig(task, null);
+    }
+
+    public TaskConfig(String task, String workDir) {
         this.task = task;
         this.name = null;
         this.schedulerParams = null;
@@ -37,7 +41,7 @@ public class TaskConfig {
         this.runName = null;
         this.cpus = 0;
         this.memoryInBytes = 0;
-        this.workDir = null;
+        this.workDir = workDir;
     }
 
     @Getter
