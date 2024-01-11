@@ -3,10 +3,10 @@ package cws.k8s.scheduler.scheduler;
 import cws.k8s.scheduler.model.PodWithAge;
 import cws.k8s.scheduler.model.Task;
 import cws.k8s.scheduler.scheduler.nodeassign.OnlineTaremaAssign;
-import cws.k8s.scheduler.scheduler.online_tarema.TaremaTaskLabeller;
 import cws.k8s.scheduler.scheduler.prioritize.MinInputPrioritize;
 import cws.k8s.scheduler.client.KubernetesClient;
 import cws.k8s.scheduler.model.SchedulerConfig;
+import cws.k8s.scheduler.scheduler.trace.NextflowTraceStorage;
 import io.fabric8.kubernetes.client.Watcher;
 import io.fabric8.kubernetes.api.model.Pod;
 import lombok.extern.slf4j.Slf4j;
@@ -15,7 +15,7 @@ import lombok.extern.slf4j.Slf4j;
 public class OnlineTaremaScheduler extends PrioritizeAssignScheduler {
 
     final private int labelSpaceSize;
-    final private TaremaTaskLabeller taskLabeller;
+    final private NextflowTraceStorage historicTraces;
 
     public OnlineTaremaScheduler(String execution,
                                  KubernetesClient client,
@@ -24,7 +24,7 @@ public class OnlineTaremaScheduler extends PrioritizeAssignScheduler {
                                  int labelSpaceSize) {
         super(execution, client, namespace, config, new MinInputPrioritize(), new OnlineTaremaAssign());
         this.labelSpaceSize = labelSpaceSize;
-        this.taskLabeller = new TaremaTaskLabeller();
+        this.historicTraces = new NextflowTraceStorage();
     }
 
     @Override
@@ -43,6 +43,6 @@ public class OnlineTaremaScheduler extends PrioritizeAssignScheduler {
             log.error("Online Tarema Scheduler: Pod {} has no task associated. Skipping trace...", pod);
             return;
         }
-        taskLabeller.saveTaskTrace(task);
+        historicTraces.saveTaskTrace(task);
     }
 }
