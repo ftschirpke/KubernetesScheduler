@@ -10,7 +10,7 @@ import lombok.extern.slf4j.Slf4j;
 public class Labels {
     final private int labelSpaceSize;
     final private int cpuLabel;
-    final private int memoryLabel;
+    final private int ramLabel;
     final private int sequentialReadLabel;
     final private int sequentialWriteLabel;
 
@@ -20,10 +20,10 @@ public class Labels {
             throw new RuntimeException("Label space size mismatch");
         }
         int cpuDifference = Math.abs(cpuLabel - other.cpuLabel);
-        int memoryDifference = Math.abs(memoryLabel - other.memoryLabel);
+        int ramDifference = Math.abs(ramLabel - other.ramLabel);
         int sequentialReadDifference = Math.abs(sequentialReadLabel - other.sequentialReadLabel);
         int sequentialWriteDifference = Math.abs(sequentialWriteLabel - other.sequentialWriteLabel);
-        return cpuDifference + memoryDifference + sequentialReadDifference + sequentialWriteDifference;
+        return cpuDifference + ramDifference + sequentialReadDifference + sequentialWriteDifference;
     }
 
 }
