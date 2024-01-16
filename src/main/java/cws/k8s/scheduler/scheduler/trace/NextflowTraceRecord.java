@@ -117,33 +117,49 @@ public class NextflowTraceRecord {
         }
     }
 
-    public Long getTimeValue(String key) throws IllegalArgumentException {
+    public long getTimeValue(String key) throws IllegalArgumentException {
         if (ArrayUtils.contains(timeFields, key)) {
-            return timeEntries.get(key);
+            Long value = timeEntries.get(key);
+            if (value == null) {
+                throw new IllegalArgumentException(String.format("Key %s has no value", key));
+            }
+            return value;
         } else {
             throw new IllegalArgumentException(String.format("Key %s is not a time field", key));
         }
     }
 
-    public Integer getIntegerValue(String key) throws IllegalArgumentException {
+    public int getIntegerValue(String key) throws IllegalArgumentException {
         if (ArrayUtils.contains(integerFields, key)) {
-            return integerEntries.get(key);
+            Integer value = integerEntries.get(key);
+            if (value == null) {
+                throw new IllegalArgumentException(String.format("Key %s has no value", key));
+            }
+            return value;
         } else {
             throw new IllegalArgumentException(String.format("Key %s is not an integer field", key));
         }
     }
 
-    public Float getPercentageValue(String key) throws IllegalArgumentException {
+    public float getPercentageValue(String key) throws IllegalArgumentException {
         if (ArrayUtils.contains(percentageFields, key)) {
-            return percentageEntries.get(key);
+            Float value = percentageEntries.get(key);
+            if (value == null) {
+                throw new IllegalArgumentException(String.format("Key %s has no value", key));
+            }
+            return value;
         } else {
             throw new IllegalArgumentException(String.format("Key %s is not a percentage field", key));
         }
     }
 
-    public Long getMemoryValue(String key) throws IllegalArgumentException {
+    public long getMemoryValue(String key) throws IllegalArgumentException {
         if (ArrayUtils.contains(memoryFields, key)) {
-            return memoryEntries.get(key);
+            Long value = memoryEntries.get(key);
+            if (value == null) {
+                throw new IllegalArgumentException(String.format("Key %s has no value", key));
+            }
+            return value;
         } else {
             throw new IllegalArgumentException(String.format("Key %s is not a memory field", key));
         }

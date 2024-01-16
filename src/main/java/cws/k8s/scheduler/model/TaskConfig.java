@@ -30,7 +30,7 @@ public class TaskConfig {
      * Only for testing
      */
     public TaskConfig(String task) {
-        TaskConfig(task, null);
+        this(task, null);
     }
 
     public TaskConfig(String task, String workDir) {
