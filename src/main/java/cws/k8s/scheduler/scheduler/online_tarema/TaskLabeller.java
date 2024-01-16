@@ -26,6 +26,10 @@ public class TaskLabeller {
                                   float[] ramGroupWeights,
                                   float[] readGroupWeights,
                                   float[] writeGroupWeights) throws NoSuchElementException {
+        if (traces.empty()) {
+            log.debug("No traces to calculate node labels from");
+            return;
+        }
         List<Float> allCpuPercentages = traces.getAll(NextflowTraceStorage.FloatField.CPU_PERCENTAGE);
         double minCpuPercentage = allCpuPercentages.stream().mapToDouble(Float::doubleValue).min().orElseThrow();
         double maxCpuPercentage = allCpuPercentages.stream().mapToDouble(Float::doubleValue).max().orElseThrow();

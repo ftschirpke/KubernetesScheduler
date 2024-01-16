@@ -106,6 +106,10 @@ public class NextflowTraceStorage {
         return index;
     }
 
+    public boolean empty() {
+        return nodeNames.isEmpty();
+    }
+
     public void saveTaskTrace(Task task) {
         NextflowTraceRecord trace = NextflowTraceRecord.from_task(task);
         TaskConfig config = task.getConfig();

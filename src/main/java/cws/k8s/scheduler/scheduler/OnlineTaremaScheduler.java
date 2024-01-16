@@ -102,4 +102,11 @@ public class OnlineTaremaScheduler extends PrioritizeAssignScheduler {
         log.info("Online Tarema Scheduler: Pod {} trace saved.", pod);
         recalculateTaskLabels();
     }
+
+    @Override
+    public void close() {
+        super.close();
+        log.info("Online Tarema Scheduler: Testing bayes.py...");
+        nodeLabeller.recalculateLabels(historicTraces);
+    }
 }
