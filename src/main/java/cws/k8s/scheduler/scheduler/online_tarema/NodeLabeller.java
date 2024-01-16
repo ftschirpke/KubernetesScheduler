@@ -30,8 +30,8 @@ public class NodeLabeller {
         log.info("Online Tarema Scheduler: Running bayes.py for node {}", nodeName);
         Process bayesProcess;
         try {
-            ProcessBuilder builder = new ProcessBuilder("python3", "bayes.py");
-            bayesProcess = new ProcessBuilder("python3", "bayes.py").start();
+            ProcessBuilder builder = new ProcessBuilder("python3", "external/bayes.py");
+            bayesProcess = new ProcessBuilder("python3", "external/bayes.py").start();
         } catch (IOException e) {
             log.error("Failed to start bayes.py process", e);
             return;
@@ -73,10 +73,10 @@ public class NodeLabeller {
 
     public void recalculateLabels(NextflowTraceStorage traces) {
         if (traces.empty()) {
-            log.debug("No traces to calculate node labels from");
+            log.info("No traces to calculate node labels from");
             return;
         }
-        log.debug("Not calculating labels for now, just testing the interaction with the bayes.py script");
+        log.info("Not calculating labels for now, just testing the interaction with the bayes.py script");
         traces.getNodeNames().forEach(nodeName -> runBayesForNode(traces, nodeName));
     }
 }

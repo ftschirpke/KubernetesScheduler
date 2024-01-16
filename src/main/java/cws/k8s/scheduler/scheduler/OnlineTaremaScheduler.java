@@ -11,8 +11,6 @@ import cws.k8s.scheduler.scheduler.prioritize.MinInputPrioritize;
 import cws.k8s.scheduler.client.KubernetesClient;
 import cws.k8s.scheduler.model.SchedulerConfig;
 import cws.k8s.scheduler.scheduler.trace.NextflowTraceStorage;
-import io.fabric8.kubernetes.client.Watcher;
-import io.fabric8.kubernetes.api.model.Pod;
 import lombok.extern.slf4j.Slf4j;
 
 import java.util.Map;
@@ -78,35 +76,30 @@ public class OnlineTaremaScheduler extends PrioritizeAssignScheduler {
         taskLabeller.recalculateLabels(historicTraces, cpuGroupWeights, ramGroupWeights, readGroupWeights, writeGroupWeights);
 
         long endTime = System.currentTimeMillis();
-        log.debug("Online Tarema Scheduler: Task labels recalculated in {} ms.", endTime - startTime);
+        log.info("Online Tarema Scheduler: Task labels recalculated in {} ms.", endTime - startTime);
         log.info("Online Tarema Scheduler: New task labels are:\n{}", taskLabeller.getLabels());
-    }
-
-    @Override
-    void podEventReceived(Watcher.Action action, Pod pod) {
-        log.info("Online Tarema Scheduler: Received Event {} for pod {}.", action, pod);
     }
 
     @Override
     void onPodTermination(PodWithAge pod) {
         super.onPodTermination(pod);
-        log.info("Online Tarema Scheduler: Pod {} terminated. Saving its trace...", pod);
+        log.info("Online Tarema Scheduler: Pod {} terminated. Saving its trace...", pod.getName());
         Task task;
         try {
             task = getTaskByPod(pod);
         } catch (IllegalStateException e) {
-            log.error("Online Tarema Scheduler: Pod {} has no task associated. Skipping trace...", pod);
+            log.error("Online Tarema Scheduler: Pod {} has no task associated. Skipping trace...", pod.getName());
             return;
         }
         historicTraces.saveTaskTrace(task);
-        log.info("Online Tarema Scheduler: Pod {} trace saved.", pod);
+        log.info("Online Tarema Scheduler: Pod {} trace saved.", pod.getName());
         recalculateTaskLabels();
     }
 
     @Override
     public void close() {
-        super.close();
         log.info("Online Tarema Scheduler: Testing bayes.py...");
         nodeLabeller.recalculateLabels(historicTraces);
+        super.close();
     }
 }

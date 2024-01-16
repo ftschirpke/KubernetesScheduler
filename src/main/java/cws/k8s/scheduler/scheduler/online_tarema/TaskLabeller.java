@@ -27,7 +27,7 @@ public class TaskLabeller {
                                   float[] readGroupWeights,
                                   float[] writeGroupWeights) throws NoSuchElementException {
         if (traces.empty()) {
-            log.debug("No traces to calculate node labels from");
+            log.info("No traces to calculate node labels from");
             return;
         }
         List<Float> allCpuPercentages = traces.getAll(NextflowTraceStorage.FloatField.CPU_PERCENTAGE);
@@ -79,7 +79,7 @@ public class TaskLabeller {
             }
             for (int i = 0; i < segments; i++) {
                 accumulatedWeight += weights[i];
-                if (value < minValue + range * accumulatedWeight) {
+                if (value <= minValue + range * accumulatedWeight) {
                     return i + 1;
                 }
             }

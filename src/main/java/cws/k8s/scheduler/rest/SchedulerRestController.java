@@ -291,12 +291,14 @@ public class SchedulerRestController {
 
         final Scheduler scheduler = schedulerHolder.get( execution );
         if ( scheduler == null ) {
+            log.info("No scheduler for execution: {}", execution);
             return noSchedulerFor( execution );
         }
         schedulerHolder.remove( execution );
         client.removeInformable( scheduler );
         scheduler.close();
         closedLastScheduler = System.currentTimeMillis();
+        log.info("Scheduler successfully deleted");
         return new ResponseEntity<>( HttpStatus.OK );
     }
 

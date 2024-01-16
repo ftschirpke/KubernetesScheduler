@@ -2,10 +2,12 @@ package cws.k8s.scheduler.scheduler.online_tarema;
 
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
+import lombok.ToString;
 import lombok.extern.slf4j.Slf4j;
 
 @Getter
 @RequiredArgsConstructor
+@ToString
 @Slf4j
 public class Labels {
     final private int labelSpaceSize;
