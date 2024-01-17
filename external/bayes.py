@@ -1,14 +1,17 @@
 import pandas as pd
 from sklearn.linear_model import BayesianRidge
 
+RUNTIME_COLUMN = "runtime"
 
 def main() -> None:
     with open(0) as f:
         df = pd.read_csv(f, index_col=-1, header=None).T
 
-    X = df.drop(columns=["runtime"]).values
-    Y = df["runtime"].values
+    X = df.drop(columns=[RUNTIME_COLUMN]).values
+    Y = df[RUNTIME_COLUMN].values
+    print("== X ==")
     print(X)
+    print("== Y ==")
     print(Y)
 
     model = BayesianRidge(compute_score=True, fit_intercept=True)

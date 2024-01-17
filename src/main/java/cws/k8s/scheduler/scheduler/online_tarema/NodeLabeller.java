@@ -30,8 +30,7 @@ public class NodeLabeller {
         log.info("Online Tarema Scheduler: Running bayes.py for node {}", nodeName);
         Process bayesProcess;
         try {
-            ProcessBuilder builder = new ProcessBuilder("python3", "external/bayes.py");
-            bayesProcess = new ProcessBuilder("python3", "external/bayes.py").start();
+            bayesProcess = new ProcessBuilder("external/venv/bin/python3", "external/bayes.py").start();
         } catch (IOException e) {
             log.error("Failed to start bayes.py process", e);
             return;
@@ -53,22 +52,36 @@ public class NodeLabeller {
 
         writer.flush();
         writer.close();
-
-        BufferedReader stdoutReader = new BufferedReader(new InputStreamReader(bayesProcess.getInputStream()));
-        String line;
+        int exitCode;
         try {
-            while ((line = stdoutReader.readLine()) != null) {
-                log.info("Online Tarema Scheduler: bayes.py stdout: {}", line);
-            }
-        } catch (IOException e) {
-            log.error("Failed to read bayes.py stdout", e);
-        }
-        try {
-            int exitCode = bayesProcess.waitFor();
+            exitCode = bayesProcess.waitFor();
             log.info("Online Tarema Scheduler: bayes.py exited with code {}", exitCode);
         } catch (InterruptedException e) {
             log.error("Failed to wait for bayes.py to exit", e);
+            return;
         }
+
+        String line;
+        if (exitCode == 0) {
+            BufferedReader stdoutReader = new BufferedReader(new InputStreamReader(bayesProcess.getInputStream()));
+            try {
+                while ((line = stdoutReader.readLine()) != null) {
+                    log.info("Online Tarema Scheduler: bayes.py stdout: {}", line);
+                }
+            } catch (IOException e) {
+                log.error("Failed to read bayes.py stdout", e);
+            }
+        } else {
+            BufferedReader stderrReader = new BufferedReader(new InputStreamReader(bayesProcess.getErrorStream()));
+            try {
+                while ((line = stderrReader.readLine()) != null) {
+                    log.error("Online Tarema Scheduler: bayes.py stderr: {}", line);
+                }
+            } catch (IOException e) {
+                log.error("Failed to read bayes.py stderr", e);
+            }
+        }
+
     }
 
     public void recalculateLabels(NextflowTraceStorage traces) {
