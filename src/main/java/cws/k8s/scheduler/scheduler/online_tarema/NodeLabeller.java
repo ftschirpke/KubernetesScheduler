@@ -44,11 +44,11 @@ public class NodeLabeller {
 
         Stream<Float> cpuPercentages = traces.getForNode(nodeName, NextflowTraceStorage.FloatField.CPU_PERCENTAGE);
         cpuPercentages.forEachOrdered(f -> writer.write(f + ","));
-        writer.write("cpu_percentages\n");
+        writer.write("cpu_percentage\n");
 
         Stream<Long> runtimes = traces.getForNode(nodeName, NextflowTraceStorage.LongField.REALTIME);
         runtimes.forEachOrdered(f -> writer.write(f + ","));
-        writer.write("runtimes\n");
+        writer.write("runtime\n");
 
         writer.flush();
         writer.close();

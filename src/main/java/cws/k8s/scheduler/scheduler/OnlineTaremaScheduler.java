@@ -96,8 +96,7 @@ public class OnlineTaremaScheduler extends PrioritizeAssignScheduler {
         recalculateTaskLabels();
     }
 
-    @Override
-    public void close() {
+    public void recalculateNodeLabels() {
         log.info("Online Tarema Scheduler: Testing bayes.py...");
         nodeLabeller.recalculateLabels(historicTraces);
         super.close();

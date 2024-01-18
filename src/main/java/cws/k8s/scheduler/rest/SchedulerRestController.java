@@ -287,12 +287,16 @@ public class SchedulerRestController {
     @DeleteMapping("/v1/scheduler/{execution}")
     ResponseEntity<String> delete( @PathVariable String execution ) {
 
-        log.info( "Delete scheduler: " + execution );
+        log.info( "Delete scheduler: {}", execution );
 
         final Scheduler scheduler = schedulerHolder.get( execution );
         if ( scheduler == null ) {
             log.info("No scheduler for execution: {}", execution);
             return noSchedulerFor( execution );
+        }
+        if ( scheduler instanceof OnlineTaremaScheduler ) {
+            ((OnlineTaremaScheduler) scheduler).recalculateNodeLabels();
+            // HACK: just a temporary way to call this for testing
         }
         schedulerHolder.remove( execution );
         client.removeInformable( scheduler );
