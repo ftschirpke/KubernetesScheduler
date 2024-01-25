@@ -42,8 +42,10 @@ public class OnlineTaremaScheduler extends PrioritizeAssignScheduler {
         float[] cpusPerCpuGroup = new float[labelSpaceSize];
         long totalMemory = 0;
         long[] memoryPerRamGroup = new long[labelSpaceSize];
-        // int[] rcharPerReadGroup = new int[labelSpaceSize]; // TODO: just ideas, but what should this really be?
-        // int[] wcharPerWriteGroup = new int[labelSpaceSize];
+        int totalNodes = 0;
+        int[] nodesPerSequentialReadGroup = new int[labelSpaceSize];
+        int[] nodesPerSequentialWriteGroup = new int[labelSpaceSize];
+
         Map<String, Labels> nodesLabels = nodeLabeller.getLabels();
         for (NodeWithAlloc node : getNodeList()) {
             String nodeName = node.getName();
@@ -51,12 +53,16 @@ public class OnlineTaremaScheduler extends PrioritizeAssignScheduler {
                 continue;
             }
             Labels nodeLabels = nodesLabels.get(nodeName);
+
             totalCpu += node.getMaxResources().getCpu().floatValue();
             cpusPerCpuGroup[nodeLabels.getCpuLabel() - 1] += node.getMaxResources().getCpu().floatValue();
             totalMemory += node.getMaxResources().getRam().longValue();
             memoryPerRamGroup[nodeLabels.getRamLabel() - 1] += node.getMaxResources().getRam().longValue();
-            // TODO: sequential read and write
+            totalNodes++;
+            nodesPerSequentialReadGroup[nodeLabels.getSequentialReadLabel() - 1]++;
+            nodesPerSequentialWriteGroup[nodeLabels.getSequentialWriteLabel() - 1]++;
         }
+
         float[] cpuGroupWeights = new float[labelSpaceSize];
         for (int i = 0; i < labelSpaceSize; i++) {
             cpuGroupWeights[i] = cpusPerCpuGroup[i] / totalCpu;
@@ -67,12 +73,15 @@ public class OnlineTaremaScheduler extends PrioritizeAssignScheduler {
         }
         float[] readGroupWeights = new float[labelSpaceSize];
         for (int i = 0; i < labelSpaceSize; i++) {
-            readGroupWeights[i] = (float) 1 / labelSpaceSize; // TODO: sequential read
+            readGroupWeights[i] = (float) nodesPerSequentialReadGroup[i] / totalNodes;
+            // TODO: are there ways to differentiate nodes reading capabilities?
         }
         float[] writeGroupWeights = new float[labelSpaceSize];
         for (int i = 0; i < labelSpaceSize; i++) {
-            writeGroupWeights[i] = (float) 1 / labelSpaceSize; // TODO: sequential write
+            writeGroupWeights[i] = (float) nodesPerSequentialWriteGroup[i] / totalNodes;
+            // TODO: are there ways to differentiate nodes writing capabilities?
         }
+
         taskLabeller.recalculateLabels(historicTraces, cpuGroupWeights, ramGroupWeights, readGroupWeights, writeGroupWeights);
 
         long endTime = System.currentTimeMillis();

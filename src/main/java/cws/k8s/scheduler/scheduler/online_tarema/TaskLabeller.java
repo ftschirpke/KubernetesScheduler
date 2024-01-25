@@ -21,11 +21,14 @@ public class TaskLabeller {
         this.labels = new HashMap<>();
     }
 
+    /**
+     * Recalculates the labels for all tasks based on the historic traces and weights for each label group.
+     */
     public void recalculateLabels(NextflowTraceStorage traces,
                                   float[] cpuGroupWeights,
                                   float[] ramGroupWeights,
                                   float[] readGroupWeights,
-                                  float[] writeGroupWeights) throws NoSuchElementException {
+                                  float[] writeGroupWeights) {
         if (traces.empty()) {
             log.info("No traces to calculate node labels from");
             return;
@@ -35,27 +38,39 @@ public class TaskLabeller {
         double maxCpuPercentage = allCpuPercentages.stream().mapToDouble(Float::doubleValue).max().orElseThrow();
         Percentiles cpuPercentiles = new Percentiles(minCpuPercentage, maxCpuPercentage, cpuGroupWeights);
 
-        List<Float> allMemoryPercentages = traces.getAll(NextflowTraceStorage.FloatField.MEMORY_PERCENTAGE);
-        double minMemoryPercentage = allMemoryPercentages.stream().mapToDouble(Float::doubleValue).min().orElseThrow();
-        double maxMemoryPercentage = allMemoryPercentages.stream().mapToDouble(Float::doubleValue).max().orElseThrow();
-        Percentiles memoryPercentiles = new Percentiles(minMemoryPercentage, maxMemoryPercentage, ramGroupWeights);
+        List<Long> allRssValues = traces.getAll(NextflowTraceStorage.LongField.RESIDENT_SET_SIZE);
+        long minRss = allRssValues.stream().mapToLong(Long::longValue).min().orElseThrow();
+        long maxRss = allRssValues.stream().mapToLong(Long::longValue).max().orElseThrow();
+        Percentiles memoryPercentiles = new Percentiles(minRss, maxRss, ramGroupWeights);
 
-        // TODO: sequential read and write
+        List<Long> allRCharValues = traces.getAll(NextflowTraceStorage.LongField.CHARACTERS_READ);
+        long minRChar = allRCharValues.stream().mapToLong(Long::longValue).min().orElseThrow();
+        long maxRChar = allRCharValues.stream().mapToLong(Long::longValue).max().orElseThrow();
+        Percentiles readPercentiles = new Percentiles(minRChar, maxRChar, readGroupWeights);
+
+        List<Long> allWCharValues = traces.getAll(NextflowTraceStorage.LongField.CHARACTERS_WRITTEN);
+        long minWChar = allWCharValues.stream().mapToLong(Long::longValue).min().orElseThrow();
+        long maxWChar = allWCharValues.stream().mapToLong(Long::longValue).max().orElseThrow();
+        Percentiles writePercentiles = new Percentiles(minWChar, maxWChar, writeGroupWeights);
 
         for (String abstractTaskName : traces.getAbstractTaskNames()) {
             Stream<Float> cpuValues = traces.getForAbstractTask(abstractTaskName, NextflowTraceStorage.FloatField.CPU_PERCENTAGE);
             double avgCpuPercentage = cpuValues.mapToDouble(Float::doubleValue).average().orElseThrow();
             int cpuLabel = cpuPercentiles.percentileNumber(avgCpuPercentage);
 
-            Stream<Float> memoryValues = traces.getForAbstractTask(abstractTaskName, NextflowTraceStorage.FloatField.MEMORY_PERCENTAGE);
-            double avgMemoryPercentage = memoryValues.mapToDouble(Float::doubleValue).average().orElseThrow();
-            int ramLabel = memoryPercentiles.percentileNumber(avgMemoryPercentage);
+            Stream<Long> rssValues = traces.getForAbstractTask(abstractTaskName, NextflowTraceStorage.LongField.RESIDENT_SET_SIZE);
+            double avgRss = rssValues.mapToLong(Long::longValue).average().orElseThrow();
+            int memoryLabel = memoryPercentiles.percentileNumber(avgRss);
 
-            // TODO: sequential read and write
-            int sequentialReadLabel = 1;
-            int sequentialWriteLabel = 1;
+            Stream<Long> rCharValues = traces.getForAbstractTask(abstractTaskName, NextflowTraceStorage.LongField.CHARACTERS_READ);
+            double avgRChar = rCharValues.mapToLong(Long::longValue).average().orElseThrow();
+            int sequentialReadLabel = readPercentiles.percentileNumber(avgRChar);
 
-            labels.put(abstractTaskName, new Labels(labelSpaceSize, cpuLabel, ramLabel, sequentialReadLabel, sequentialWriteLabel));
+            Stream<Long> wCharValues = traces.getForAbstractTask(abstractTaskName, NextflowTraceStorage.LongField.CHARACTERS_WRITTEN);
+            double avgWChar = wCharValues.mapToLong(Long::longValue).average().orElseThrow();
+            int sequentialWriteLabel = writePercentiles.percentileNumber(avgWChar);
+
+            labels.put(abstractTaskName, new Labels(labelSpaceSize, cpuLabel, memoryLabel, sequentialReadLabel, sequentialWriteLabel));
         }
     }
 
@@ -72,10 +87,16 @@ public class TaskLabeller {
             this.weights = weights;
         }
 
+        /**
+         * Returns the percentile number for a given value.
+         * @param value the value to calculate the percentile number for
+         * @return the percentile number (between 1 and segments inclusive)
+         */
         public int percentileNumber(double value) {
             float accumulatedWeight = 0;
             if (value < minValue) {
                 log.warn("Unexpected value: {} is below the minimum value {}.", value, minValue);
+                return 1;
             }
             for (int i = 0; i < segments; i++) {
                 accumulatedWeight += weights[i];

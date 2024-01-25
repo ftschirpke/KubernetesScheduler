@@ -91,5 +91,6 @@ public class NodeLabeller {
         }
         log.info("Not calculating labels for now, just testing the interaction with the bayes.py script");
         traces.getNodeNames().forEach(nodeName -> runBayesForNode(traces, nodeName));
+        // TODO: implement the rest of the method, currently just testing the bayes.py script
     }
 }
