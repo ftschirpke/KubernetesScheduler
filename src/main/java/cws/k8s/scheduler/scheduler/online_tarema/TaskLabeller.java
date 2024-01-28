@@ -6,7 +6,8 @@ import lombok.extern.slf4j.Slf4j;
 
 import java.util.HashMap;
 import java.util.List;
-import java.util.NoSuchElementException;
+import java.util.stream.DoubleStream;
+import java.util.stream.LongStream;
 import java.util.stream.Stream;
 
 @Getter
@@ -34,24 +35,13 @@ public class TaskLabeller {
             return;
         }
         List<Float> allCpuPercentages = traces.getAll(NextflowTraceStorage.FloatField.CPU_PERCENTAGE);
-        double minCpuPercentage = allCpuPercentages.stream().mapToDouble(Float::doubleValue).min().orElseThrow();
-        double maxCpuPercentage = allCpuPercentages.stream().mapToDouble(Float::doubleValue).max().orElseThrow();
-        Percentiles cpuPercentiles = new Percentiles(minCpuPercentage, maxCpuPercentage, cpuGroupWeights);
-
+        Percentiles cpuPercentiles = new Percentiles(floatMin(allCpuPercentages), floatMax(allCpuPercentages), cpuGroupWeights);
         List<Long> allRssValues = traces.getAll(NextflowTraceStorage.LongField.RESIDENT_SET_SIZE);
-        long minRss = allRssValues.stream().mapToLong(Long::longValue).min().orElseThrow();
-        long maxRss = allRssValues.stream().mapToLong(Long::longValue).max().orElseThrow();
-        Percentiles memoryPercentiles = new Percentiles(minRss, maxRss, ramGroupWeights);
-
+        Percentiles memoryPercentiles = new Percentiles(longMin(allRssValues), longMax(allRssValues), ramGroupWeights);
         List<Long> allRCharValues = traces.getAll(NextflowTraceStorage.LongField.CHARACTERS_READ);
-        long minRChar = allRCharValues.stream().mapToLong(Long::longValue).min().orElseThrow();
-        long maxRChar = allRCharValues.stream().mapToLong(Long::longValue).max().orElseThrow();
-        Percentiles readPercentiles = new Percentiles(minRChar, maxRChar, readGroupWeights);
-
+        Percentiles readPercentiles = new Percentiles(longMin(allRCharValues), longMax(allRCharValues), readGroupWeights);
         List<Long> allWCharValues = traces.getAll(NextflowTraceStorage.LongField.CHARACTERS_WRITTEN);
-        long minWChar = allWCharValues.stream().mapToLong(Long::longValue).min().orElseThrow();
-        long maxWChar = allWCharValues.stream().mapToLong(Long::longValue).max().orElseThrow();
-        Percentiles writePercentiles = new Percentiles(minWChar, maxWChar, writeGroupWeights);
+        Percentiles writePercentiles = new Percentiles(longMin(allWCharValues), longMax(allWCharValues), writeGroupWeights);
 
         for (String abstractTaskName : traces.getAbstractTaskNames()) {
             Stream<Float> cpuValues = traces.getForAbstractTask(abstractTaskName, NextflowTraceStorage.FloatField.CPU_PERCENTAGE);
@@ -80,7 +70,7 @@ public class TaskLabeller {
         private final int segments;
         private final float[] weights;
 
-        public Percentiles(double minValue, double maxValue, float[] weights ) {
+        public Percentiles(double minValue, double maxValue, float[] weights) {
             this.minValue = minValue;
             this.range = maxValue - minValue;
             this.segments = weights.length;
@@ -89,6 +79,7 @@ public class TaskLabeller {
 
         /**
          * Returns the percentile number for a given value.
+         *
          * @param value the value to calculate the percentile number for
          * @return the percentile number (between 1 and segments inclusive)
          */
@@ -107,7 +98,29 @@ public class TaskLabeller {
             log.warn("Unexpected value: {} is above the maximum value {}.", value, minValue + range);
             return segments;
         }
+    }
 
+    private static long longMin(List<Long> list) {
+        return longStream(list).min().orElseThrow();
+    }
 
+    private static long longMax(List<Long> list) {
+        return longStream(list).max().orElseThrow();
+    }
+
+    private static double floatMax(List<Float> list) {
+        return doubleStream(list).max().orElseThrow();
+    }
+
+    private static double floatMin(List<Float> list) {
+        return doubleStream(list).min().orElseThrow();
+    }
+
+    private static LongStream longStream(List<Long> list) {
+        return list.stream().mapToLong(Long::longValue);
+    }
+
+    private static DoubleStream doubleStream(List<Float> list) {
+        return list.stream().mapToDouble(Float::doubleValue);
     }
 }
