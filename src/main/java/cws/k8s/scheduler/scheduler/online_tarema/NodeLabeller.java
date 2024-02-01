@@ -6,7 +6,6 @@ import lombok.extern.slf4j.Slf4j;
 
 import java.io.*;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.stream.Stream;
 
@@ -15,15 +14,13 @@ import java.util.stream.Stream;
 public class NodeLabeller {
     private final int labelSpaceSize;
     private final HashMap<String, Labels> labels;
+    private final HashMap<String, Estimation> estimations;
 
     public NodeLabeller(int labelSpaceSize) {
         this.labelSpaceSize = labelSpaceSize;
         // HACK: hard-coded labels for now
-        this.labels = new HashMap<>(Map.of(
-                "hu-worker-c29", new Labels(labelSpaceSize, 1, 1, 1, 1),
-                "hu-worker-c40", new Labels(labelSpaceSize, 2, 2, 2, 2),
-                "hu-worker-c43", new Labels(labelSpaceSize, 3, 3, 3, 3)
-        ));
+        this.labels = new HashMap<>();
+        this.estimations = new HashMap<>();
     }
 
     private void runBayesForNode(NextflowTraceStorage traces, String nodeName) {
@@ -32,23 +29,19 @@ public class NodeLabeller {
         try {
             bayesProcess = new ProcessBuilder("external/venv/bin/python3", "external/bayes.py").start();
         } catch (IOException e) {
-            log.error("Failed to start bayes.py process", e);
+            log.error("Online Tarema Scheduler: Failed to start bayes.py process", e);
             return;
         }
         OutputStream in = bayesProcess.getOutputStream();
         PrintWriter writer = new PrintWriter(in);
 
-        Stream<Float> cpus = traces.getForNode(nodeName, NextflowTraceStorage.FloatField.CPUS);
-        cpus.forEachOrdered(f -> writer.write(f + ","));
-        writer.write("cpus\n");
-
-        Stream<Float> cpuPercentages = traces.getForNode(nodeName, NextflowTraceStorage.FloatField.CPU_PERCENTAGE);
-        cpuPercentages.forEachOrdered(f -> writer.write(f + ","));
-        writer.write("cpu_percentage\n");
-
-        Stream<Long> runtimes = traces.getForNode(nodeName, NextflowTraceStorage.LongField.REALTIME);
-        runtimes.forEachOrdered(f -> writer.write(f + ","));
-        writer.write("runtime\n");
+        writeValues(writer, "cpus", traces.getForNode(nodeName, NextflowTraceStorage.FloatField.CPUS));
+        writeValues(writer, "%cpu", traces.getForNode(nodeName, NextflowTraceStorage.FloatField.CPU_PERCENTAGE));
+        writeValues(writer, "vmem", traces.getForNode(nodeName, NextflowTraceStorage.LongField.VIRTUAL_MEMORY));
+        writeValues(writer, "rss", traces.getForNode(nodeName, NextflowTraceStorage.LongField.RESIDENT_SET_SIZE));
+        writeValues(writer, "rchar", traces.getForNode(nodeName, NextflowTraceStorage.LongField.CHARACTERS_READ));
+        writeValues(writer, "wchar", traces.getForNode(nodeName, NextflowTraceStorage.LongField.CHARACTERS_WRITTEN));
+        writeValues(writer, "realtime", traces.getForNode(nodeName, NextflowTraceStorage.LongField.REALTIME));
 
         writer.flush();
         writer.close();
@@ -57,19 +50,40 @@ public class NodeLabeller {
             exitCode = bayesProcess.waitFor();
             log.info("Online Tarema Scheduler: bayes.py exited with code {}", exitCode);
         } catch (InterruptedException e) {
-            log.error("Failed to wait for bayes.py to exit", e);
+            log.error("Online Tarema Scheduler: Failed to wait for bayes.py to exit", e);
             return;
         }
 
         String line;
+        MeanStdRecord cpu = null;
+        MeanStdRecord mem = null;
+        MeanStdRecord read = null;
+        MeanStdRecord write = null;
         if (exitCode == 0) {
             BufferedReader stdoutReader = new BufferedReader(new InputStreamReader(bayesProcess.getInputStream()));
             try {
                 while ((line = stdoutReader.readLine()) != null) {
-                    log.info("Online Tarema Scheduler: bayes.py stdout: {}", line);
+                    if (line.startsWith("DEBUG")) {
+                        log.info("Online Tarema Scheduler: bayes.py {}", line);
+                    } else if (line.startsWith("CPU")) {
+                        cpu = meanStdFromLine(line);
+                    } else if (line.startsWith("MEM")) {
+                        mem = meanStdFromLine(line);
+                    } else if (line.startsWith("SEQ_READ")) {
+                        read = meanStdFromLine(line);
+                    } else if (line.startsWith("SEQ_WRITE")) {
+                        write = meanStdFromLine(line);
+                    } else {
+                        log.error("Online Tarema Scheduler: bayes.py UNEXPECTED {}", line);
+                    }
                 }
+                if (cpu == null || mem == null || read == null || write == null) {
+                    log.error("Online Tarema Scheduler: bayes.py did not return all estimations");
+                    return;
+                }
+                estimations.put(nodeName, new Estimation(cpu, mem, read, write));
             } catch (IOException e) {
-                log.error("Failed to read bayes.py stdout", e);
+                log.error("Online Tarema Scheduler: Failed to read bayes.py stdout", e);
             }
         } else {
             BufferedReader stderrReader = new BufferedReader(new InputStreamReader(bayesProcess.getErrorStream()));
@@ -78,19 +92,42 @@ public class NodeLabeller {
                     log.error("Online Tarema Scheduler: bayes.py stderr: {}", line);
                 }
             } catch (IOException e) {
-                log.error("Failed to read bayes.py stderr", e);
+                log.error("Online Tarema Scheduler: Failed to read bayes.py stderr", e);
             }
         }
 
     }
 
     public void recalculateLabels(NextflowTraceStorage traces) {
+        recalculateLabels(traces, traces.getNodeNames().stream());
+    }
+
+    public void recalculateLabels(NextflowTraceStorage traces, Stream<String> nodesWithNewTraces) {
         if (traces.empty()) {
             log.info("No traces to calculate node labels from");
             return;
         }
-        log.info("Not calculating labels for now, just testing the interaction with the bayes.py script");
-        traces.getNodeNames().forEach(nodeName -> runBayesForNode(traces, nodeName));
-        // TODO: implement the rest of the method, currently just testing the bayes.py script
+        nodesWithNewTraces.forEach(nodeName -> runBayesForNode(traces, nodeName));
+        recalculateGroups();
+    }
+
+    private void recalculateGroups() {
+        // TODO: cluster nodes into groups based on the estimations using silhouette score
+    }
+
+    private <T> void writeValues(PrintWriter writer, String name, Stream<T> values) {
+        values.forEachOrdered(f -> writer.write(f + ","));
+        writer.write(name + "\n");
+    }
+
+    private record Estimation(MeanStdRecord cpu, MeanStdRecord mem, MeanStdRecord read, MeanStdRecord write) {
+    }
+
+    private record MeanStdRecord(float mean, float std) {
+    }
+
+    private MeanStdRecord meanStdFromLine(String line) {
+        String[] parts = line.split(",");
+        return new MeanStdRecord(Float.parseFloat(parts[1]), Float.parseFloat(parts[2]));
     }
 }
