@@ -2,30 +2,63 @@ package cws.k8s.scheduler.scheduler.online_tarema;
 
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
+import lombok.Setter;
 import lombok.ToString;
 import lombok.extern.slf4j.Slf4j;
 
 @Getter
-@RequiredArgsConstructor
 @ToString
 @Slf4j
 public class Labels {
-    final private int labelSpaceSize;
-    final private int cpuLabel;
-    final private int ramLabel;
-    final private int sequentialReadLabel;
-    final private int sequentialWriteLabel;
+    private int cpuLabel;
+    private int memLabel;
+    private int sequentialReadLabel;
+    private int sequentialWriteLabel;
 
-    public int absoluteDifference(Labels other) throws RuntimeException {
-        if (other.getLabelSpaceSize() != this.labelSpaceSize) {
-            log.error("Label space size mismatch: {} != {}", other.getLabelSpaceSize(), this.labelSpaceSize);
-            throw new RuntimeException("Label space size mismatch");
-        }
+    public Labels(int cpuLabel, int memLabel, int sequentialReadLabel, int sequentialWriteLabel) {
+        this.cpuLabel = cpuLabel;
+        this.memLabel = memLabel;
+        this.sequentialReadLabel = sequentialReadLabel;
+        this.sequentialWriteLabel = sequentialWriteLabel;
+    }
+
+    public int absoluteDifference(Labels other) {
         int cpuDifference = Math.abs(cpuLabel - other.cpuLabel);
-        int ramDifference = Math.abs(ramLabel - other.ramLabel);
+        int ramDifference = Math.abs(memLabel - other.memLabel);
         int sequentialReadDifference = Math.abs(sequentialReadLabel - other.sequentialReadLabel);
         int sequentialWriteDifference = Math.abs(sequentialWriteLabel - other.sequentialWriteLabel);
         return cpuDifference + ramDifference + sequentialReadDifference + sequentialWriteDifference;
     }
 
+    boolean setCpuLabel(int cpuLabel) {
+        if (cpuLabel == this.cpuLabel) {
+            return false;
+        }
+        this.cpuLabel = cpuLabel;
+        return true;
+    }
+
+    boolean setMemLabel(int memLabel) {
+        if (memLabel == this.memLabel) {
+            return false;
+        }
+        this.memLabel = memLabel;
+        return true;
+    }
+
+    boolean setSequentialReadLabel(int sequentialReadLabel) {
+        if (sequentialReadLabel == this.sequentialReadLabel) {
+            return false;
+        }
+        this.sequentialReadLabel = sequentialReadLabel;
+        return true;
+    }
+
+    boolean setSequentialWriteLabel(int sequentialWriteLabel) {
+        if (sequentialWriteLabel == this.sequentialWriteLabel) {
+            return false;
+        }
+        this.sequentialWriteLabel = sequentialWriteLabel;
+        return true;
+    }
 }

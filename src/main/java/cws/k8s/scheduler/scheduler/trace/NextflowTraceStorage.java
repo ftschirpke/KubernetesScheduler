@@ -1,5 +1,6 @@
 package cws.k8s.scheduler.scheduler.trace;
 
+import cws.k8s.scheduler.model.NodeWithAlloc;
 import cws.k8s.scheduler.model.Task;
 import cws.k8s.scheduler.model.TaskConfig;
 import lombok.Getter;
@@ -37,7 +38,7 @@ public class NextflowTraceStorage {
     }
 
     @Getter
-    final private ArrayList<String> nodeNames;
+    final private ArrayList<NodeWithAlloc> nodes;
     @Getter
     final private ArrayList<String> abstractTaskNames;
 
@@ -64,7 +65,7 @@ public class NextflowTraceStorage {
     final private ArrayList<Long> realtimeValues;
 
     public NextflowTraceStorage() {
-        this.nodeNames = new ArrayList<>();
+        this.nodes = new ArrayList<>();
         this.abstractTaskNames = new ArrayList<>();
         this.nodeIds = new ArrayList<>();
         this.abstractTaskIds = new ArrayList<>();
@@ -88,11 +89,11 @@ public class NextflowTraceStorage {
         this.realtimeValues = new ArrayList<>();
     }
 
-    private int getNodeIndex(String nodeName) {
-        int index = nodeNames.indexOf(nodeName);
+    private int getNodeIndex(NodeWithAlloc node) {
+        int index = nodes.indexOf(node);
         if (index == -1) {
-            nodeNames.add(nodeName);
-            index = nodeNames.size() - 1;
+            nodes.add(node);
+            index = nodes.size() - 1;
         }
         return index;
     }
@@ -107,15 +108,15 @@ public class NextflowTraceStorage {
     }
 
     public boolean empty() {
-        return nodeNames.isEmpty();
+        return nodes.isEmpty();
     }
 
     public void saveTaskTrace(Task task) {
         NextflowTraceRecord trace = NextflowTraceRecord.from_task(task);
         TaskConfig config = task.getConfig();
 
-        String nodeName = task.getNode().getName();
-        int nodeIndex = getNodeIndex(nodeName);
+        NodeWithAlloc node = task.getNode();
+        int nodeIndex = getNodeIndex(node);
         nodeIds.add(nodeIndex);
         String abstractTaskName = config.getTask();
         int abstractTaskIndex = getAbstractTaskIndex(abstractTaskName);
@@ -179,29 +180,29 @@ public class NextflowTraceStorage {
                 .mapToObj(data::get);
     }
 
-    public Stream<Integer> getTaskIdsForNode(String nodeName) {
-        return getByIndex(getNodeIndex(nodeName), nodeIds, taskIds);
+    public Stream<Integer> getTaskIdsForNode(NodeWithAlloc node) {
+        return getByIndex(getNodeIndex(node), nodeIds, taskIds);
     }
     public Stream<Integer> getTaskIdsForAbstractTask(String abstractTaskName) {
         return getByIndex(getAbstractTaskIndex(abstractTaskName), abstractTaskIds, taskIds);
     }
 
-    public Stream<Float> getForNode(String nodeName, FloatField field) {
-        return getByIndex(getNodeIndex(nodeName), nodeIds, getAll(field));
+    public Stream<Float> getForNode(NodeWithAlloc node, FloatField field) {
+        return getByIndex(getNodeIndex(node), nodeIds, getAll(field));
     }
     public Stream<Float> getForAbstractTask(String abstractTaskName, FloatField field) {
         return getByIndex(getAbstractTaskIndex(abstractTaskName), abstractTaskIds, getAll(field));
     }
 
-    public Stream<Integer> getForNode(String nodeName, IntegerField field) {
-        return getByIndex(getNodeIndex(nodeName), nodeIds, getAll(field));
+    public Stream<Integer> getForNode(NodeWithAlloc node, IntegerField field) {
+        return getByIndex(getNodeIndex(node), nodeIds, getAll(field));
     }
     public Stream<Integer> getForAbstractTask(String abstractTaskName, IntegerField field) {
         return getByIndex(getAbstractTaskIndex(abstractTaskName), abstractTaskIds, getAll(field));
     }
 
-    public Stream<Long> getForNode(String nodeName, LongField field) {
-        return getByIndex(getNodeIndex(nodeName), nodeIds, getAll(field));
+    public Stream<Long> getForNode(NodeWithAlloc node, LongField field) {
+        return getByIndex(getNodeIndex(node), nodeIds, getAll(field));
     }
     public Stream<Long> getForAbstractTask(String abstractTaskName, LongField field) {
         return getByIndex(getAbstractTaskIndex(abstractTaskName), abstractTaskIds, getAll(field));

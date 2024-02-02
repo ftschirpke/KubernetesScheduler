@@ -14,11 +14,9 @@ import java.util.stream.Stream;
 @Slf4j
 public class TaskLabeller {
 
-    private final int labelSpaceSize;
     private final HashMap<String, Labels> labels;
 
-    public TaskLabeller(int labelSpaceSize) {
-        this.labelSpaceSize = labelSpaceSize;
+    public TaskLabeller() {
         this.labels = new HashMap<>();
     }
 
@@ -60,7 +58,7 @@ public class TaskLabeller {
             double avgWChar = wCharValues.mapToLong(Long::longValue).average().orElseThrow();
             int sequentialWriteLabel = writePercentiles.percentileNumber(avgWChar);
 
-            labels.put(abstractTaskName, new Labels(labelSpaceSize, cpuLabel, memoryLabel, sequentialReadLabel, sequentialWriteLabel));
+            labels.put(abstractTaskName, new Labels(cpuLabel, memoryLabel, sequentialReadLabel, sequentialWriteLabel));
         }
     }
 

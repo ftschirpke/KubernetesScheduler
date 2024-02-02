@@ -107,8 +107,7 @@ public class SchedulerRestController {
 
         switch ( strategy.toLowerCase() ){
             case "online_tarema":
-                scheduler = new OnlineTaremaScheduler( execution, client, namespace, config, 3 );
-                // TODO: make label space size configurable, currently hardcoded to 3 following Tarema
+                scheduler = new OnlineTaremaScheduler( execution, client, namespace, config );
                 break;
             default: {
                 final String[] split = strategy.split( "-" );

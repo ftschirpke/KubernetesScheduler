@@ -42,7 +42,7 @@ def bayes(df: pd.DataFrame, columns: List[str]) -> (float, float):
 
 def main() -> None:
     with open(0) as f:
-        df = pd.read_csv(f, index_col=-1, header=None).T
+        df = pd.read_csv(f, index_col=0, header=None).T
 
     cpu_mean, cpu_std = bayes(df, CPU_COLUMNS)
     print(f"CPU,{cpu_mean},{cpu_std}")
