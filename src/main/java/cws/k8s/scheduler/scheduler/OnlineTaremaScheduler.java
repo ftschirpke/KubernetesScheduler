@@ -76,7 +76,7 @@ public class OnlineTaremaScheduler extends Scheduler {
         }
 
         List<NodeTaskAlignment> alignment;
-        if (nodeLabeller.getLabels() == null) {
+        if (nodeLabeller.getLabels().isEmpty()) {
             minInputPrioritize.sortTasks(unscheduledTasks);
             alignment = randomNodeAssign.getTaskNodeAlignment(unscheduledTasks, availableByNode);
         } else {
