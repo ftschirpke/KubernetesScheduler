@@ -12,8 +12,8 @@ SEQ_READ_COLUMNS = ["rchar"]
 SEQ_WRITE_COLUMNS = ["wchar"]
 
 TEST_VALUES = {  # HACK: These are values are totally made up, just for testing purposes - only temporary!
+    "cpus": 8,
     "%cpu": 200,
-    "cpu": 8,
     "vmem": 4 * 1024**3,
     "rss": 3 * 1024**3,
     "rchar": 4 * 1024**3,
@@ -36,8 +36,11 @@ def bayes(df: pd.DataFrame, columns: List[str]) -> (float, float):
     print(f"DEBUG: {model.lambda_ = }")
     print(f"DEBUG: {model.score(X, Y) = }")
 
-    predictor_input = np.array([TEST_VALUES[col] for col in columns])
-    return model.predict(predictor_input)
+    predictor_input = np.array([TEST_VALUES[col] for col in columns]).reshape(1, -1)
+    mean, std = model.predict(predictor_input, return_std=True)
+    assert mean.shape == (1,)
+    assert std.shape == (1,)
+    return mean[0], std[0]
 
 
 def main() -> None:

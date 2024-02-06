@@ -75,6 +75,9 @@ public class NodeLabeller {
         BufferedReader stdoutReader = new BufferedReader(new InputStreamReader(bayesProcess.getInputStream()));
         try {
             while ((line = stdoutReader.readLine()) != null) {
+                if (line.isEmpty()) {
+                    continue;
+                }
                 if (line.startsWith("DEBUG")) {
                     log.info("Online Tarema Scheduler: bayes.py {}", line);
                 } else if (line.startsWith("CPU")) {
@@ -86,7 +89,7 @@ public class NodeLabeller {
                 } else if (line.startsWith("SEQ_WRITE")) {
                     write = meanStdFromLine(line);
                 } else {
-                    log.error("Online Tarema Scheduler: bayes.py UNEXPECTED {}", line);
+                    log.error("Online Tarema Scheduler: bayes.py UNEXPECTED: {}", line);
                 }
             }
             if (cpu == null || mem == null || read == null || write == null) {
@@ -161,13 +164,16 @@ public class NodeLabeller {
         BufferedReader stdoutReader = new BufferedReader(new InputStreamReader(bayesProcess.getInputStream()));
         try {
             while ((line = stdoutReader.readLine()) != null) {
+                if (line.isEmpty()) {
+                    continue;
+                }
                 if (line.startsWith("DEBUG")) {
                     log.info("Online Tarema Scheduler: kmeans.py {}", line);
                     continue;
                 }
                 String[] parts = line.split(",");
                 if (parts.length != 5) {
-                    log.error("Online Tarema Scheduler: kmeans.py UNEXPECTED {}", line);
+                    log.error("Online Tarema Scheduler: kmeans.py UNEXPECTED: {}", line);
                     continue;
                 }
                 String rowName = parts[0];
@@ -178,7 +184,7 @@ public class NodeLabeller {
                     read = Integer.parseInt(parts[3]);
                     write = Integer.parseInt(parts[4]);
                 } catch (NumberFormatException e) {
-                    log.error("Online Tarema Scheduler: kmeans.py UNEXPECTED {}", line);
+                    log.error("Online Tarema Scheduler: kmeans.py UNEXPECTED: {}", line);
                     continue;
                 }
                 if (rowName.equals("maxLabels")) {
@@ -233,7 +239,7 @@ public class NodeLabeller {
         try {
             return new MeanStdRecord(Float.parseFloat(parts[1]), Float.parseFloat(parts[2]));
         } catch (NumberFormatException e) {
-            log.error("Online Tarema Scheduler: Failed to parse mean and std from line {}", line);
+            log.error("Online Tarema Scheduler: Failed to parse mean and std from line \"{}\"", line);
             return null;
         }
     }
