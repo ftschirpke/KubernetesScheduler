@@ -102,10 +102,6 @@ public class NodeLabeller {
         }
     }
 
-    public boolean recalculateLabels(NextflowTraceStorage traces) {
-        return recalculateLabels(traces, traces.getNodes().stream());
-    }
-
     public boolean recalculateLabels(NextflowTraceStorage traces, Stream<NodeWithAlloc> nodesWithNewTraces) {
         if (traces.empty()) {
             log.info("No traces to calculate node labels from");
@@ -188,28 +184,32 @@ public class NodeLabeller {
                     continue;
                 }
                 if (rowName.equals("maxLabels")) {
-                    if (maxLabels == null) {
-                        maxLabels = new Labels(cpu, mem, read, write);
-                        cpuGroupsChanged = true;
-                        memGroupsChanged = true;
-                        readGroupsChanged = true;
-                        writeGroupsChanged = true;
-                    } else {
-                        cpuGroupsChanged |= maxLabels.setCpuLabel(cpu);
-                        memGroupsChanged |= maxLabels.setMemLabel(mem);
-                        readGroupsChanged |= maxLabels.setSequentialReadLabel(read);
-                        writeGroupsChanged |= maxLabels.setSequentialWriteLabel(write);
+                    synchronized (maxLabels) {
+                        if (maxLabels == null) {
+                            maxLabels = new Labels(cpu, mem, read, write);
+                            cpuGroupsChanged = true;
+                            memGroupsChanged = true;
+                            readGroupsChanged = true;
+                            writeGroupsChanged = true;
+                        } else {
+                            cpuGroupsChanged |= maxLabels.setCpuLabel(cpu);
+                            memGroupsChanged |= maxLabels.setMemLabel(mem);
+                            readGroupsChanged |= maxLabels.setSequentialReadLabel(read);
+                            writeGroupsChanged |= maxLabels.setSequentialWriteLabel(write);
+                        }
                     }
                 } else if (estimations.containsKey(rowName)) {
-                    Labels nodeLabels = labels.get(rowName);
-                    if (nodeLabels == null) {
-                        nodeLabels = new Labels(cpu, mem, read, write);
-                        labels.put(rowName, nodeLabels);
-                    } else {
-                        cpuGroupsChanged |= nodeLabels.setCpuLabel(cpu);
-                        memGroupsChanged |= nodeLabels.setMemLabel(mem);
-                        readGroupsChanged |= nodeLabels.setSequentialReadLabel(read);
-                        writeGroupsChanged |= nodeLabels.setSequentialWriteLabel(write);
+                    synchronized (labels) {
+                        Labels nodeLabels = labels.get(rowName);
+                        if (nodeLabels == null) {
+                            nodeLabels = new Labels(cpu, mem, read, write);
+                            labels.put(rowName, nodeLabels);
+                        } else {
+                            cpuGroupsChanged |= nodeLabels.setCpuLabel(cpu);
+                            memGroupsChanged |= nodeLabels.setMemLabel(mem);
+                            readGroupsChanged |= nodeLabels.setSequentialReadLabel(read);
+                            writeGroupsChanged |= nodeLabels.setSequentialWriteLabel(write);
+                        }
                     }
                 }
             }

@@ -161,8 +161,13 @@ public class OnlineTaremaScheduler extends Scheduler {
                         int labelDifference;
                         if (nodeLabels == null) {
                             labelDifference = 0; // prioritize nodes with no labels to get them labeled
+                            // TODO: this might not even happen anymore, check if it can be removed
                         } else {
-                            labelDifference = taskLabels.absoluteDifference(nodeLabels);
+                            synchronized (taskLabels) {
+                                synchronized (nodeLabels) {
+                                    labelDifference = taskLabels.absoluteDifference(nodeLabels);
+                                }
+                            }
                         }
                         if (lowestLabelDifference == null || labelDifference < lowestLabelDifference) {
                             lowestLabelDifference = labelDifference;

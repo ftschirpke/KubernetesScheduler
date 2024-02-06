@@ -48,17 +48,19 @@ public class TaskLabeller {
 
             Stream<Long> rssValues = traces.getForAbstractTask(abstractTaskName, NextflowTraceStorage.LongField.RESIDENT_SET_SIZE);
             double avgRss = rssValues.mapToLong(Long::longValue).average().orElseThrow();
-            int memoryLabel = memoryPercentiles.percentileNumber(avgRss);
+            int memLabel = memoryPercentiles.percentileNumber(avgRss);
 
             Stream<Long> rCharValues = traces.getForAbstractTask(abstractTaskName, NextflowTraceStorage.LongField.CHARACTERS_READ);
             double avgRChar = rCharValues.mapToLong(Long::longValue).average().orElseThrow();
-            int sequentialReadLabel = readPercentiles.percentileNumber(avgRChar);
+            int seqReadLabel = readPercentiles.percentileNumber(avgRChar);
 
             Stream<Long> wCharValues = traces.getForAbstractTask(abstractTaskName, NextflowTraceStorage.LongField.CHARACTERS_WRITTEN);
             double avgWChar = wCharValues.mapToLong(Long::longValue).average().orElseThrow();
-            int sequentialWriteLabel = writePercentiles.percentileNumber(avgWChar);
+            int seqWriteLabel = writePercentiles.percentileNumber(avgWChar);
 
-            labels.put(abstractTaskName, new Labels(cpuLabel, memoryLabel, sequentialReadLabel, sequentialWriteLabel));
+            synchronized (labels) {
+                labels.put(abstractTaskName, new Labels(cpuLabel, memLabel, seqReadLabel, seqWriteLabel));
+            }
         }
     }
 
