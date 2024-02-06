@@ -39,6 +39,7 @@ public class OnlineTaremaScheduler extends Scheduler {
         this.minInputPrioritize = new MinInputPrioritize();
         this.minRankPrioritize = new RankMinPrioritize();
         this.randomNodeAssign = new RandomNodeAssign();
+        this.randomNodeAssign.registerScheduler(this);
 
         this.historicTraces = new NextflowTraceStorage();
         this.nodeLabeller = new NodeLabeller();
