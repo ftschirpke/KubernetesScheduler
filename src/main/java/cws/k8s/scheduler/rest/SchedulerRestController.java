@@ -293,10 +293,6 @@ public class SchedulerRestController {
             log.info("No scheduler for execution: {}", execution);
             return noSchedulerFor( execution );
         }
-        if ( scheduler instanceof OnlineTaremaScheduler ) {
-            ((OnlineTaremaScheduler) scheduler).recalculateNodeLabels();
-            // HACK: just a temporary way to call this for testing
-        }
         schedulerHolder.remove( execution );
         client.removeInformable( scheduler );
         scheduler.close();

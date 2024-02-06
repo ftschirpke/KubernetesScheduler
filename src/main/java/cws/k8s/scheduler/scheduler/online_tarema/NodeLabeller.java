@@ -25,7 +25,7 @@ public class NodeLabeller {
     }
 
     private void runBayesForNode(NextflowTraceStorage traces, NodeWithAlloc node) {
-        log.info("Online Tarema Scheduler: Running bayes.py for node {}", node);
+        log.info("Online Tarema Scheduler: Running bayes.py for node {}", node.getName());
         Process bayesProcess;
         try {
             bayesProcess = new ProcessBuilder("external/venv/bin/python3", "external/bayes.py").start();

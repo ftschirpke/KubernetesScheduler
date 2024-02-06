@@ -47,13 +47,21 @@ def main() -> None:
     with open(0) as f:
         df = pd.read_csv(f, index_col=0, header=None).T
 
+    print("=== CPU model ===")
     cpu_mean, cpu_std = bayes(df, CPU_COLUMNS)
+    print(f"DEBUG: {cpu_mean = }, {cpu_std = }")
     print(f"CPU,{cpu_mean},{cpu_std}")
+    print("=== MEM model ===")
     mem_mean, mem_std = bayes(df, MEM_COLUMNS)
+    print(f"DEBUG: {mem_mean = }, {mem_std = }")
     print(f"MEM,{mem_mean},{mem_std}")
+    print("=== SEQ_READ model ===")
     seq_read_mean, seq_read_std = bayes(df, SEQ_READ_COLUMNS)
+    print(f"DEBUG: {seq_read_mean = }, {seq_read_std = }")
     print(f"SEQ_READ,{seq_read_mean},{seq_read_std}")
+    print("=== SEQ_WRITE model ===")
     seq_write_mean, seq_write_std = bayes(df, SEQ_WRITE_COLUMNS)
+    print(f"DEBUG: {seq_write_mean = }, {seq_write_std = }")
     print(f"SEQ_WRITE,{seq_write_mean},{seq_write_std}")
 
 

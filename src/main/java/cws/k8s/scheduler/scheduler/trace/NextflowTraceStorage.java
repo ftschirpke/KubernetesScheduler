@@ -38,31 +38,31 @@ public class NextflowTraceStorage {
     }
 
     @Getter
-    final private ArrayList<NodeWithAlloc> nodes;
+    private final ArrayList<NodeWithAlloc> nodes;
     @Getter
-    final private ArrayList<String> abstractTaskNames;
+    private final ArrayList<String> abstractTaskNames;
 
-    final private ArrayList<Integer> nodeIds;
-    final private ArrayList<Integer> abstractTaskIds;
+    private final ArrayList<Integer> nodeIds;
+    private final ArrayList<Integer> abstractTaskIds;
 
-    final private ArrayList<Integer> taskIds;
-    final private ArrayList<Float> cpusValues;
-    final private ArrayList<Float> cpuPercentageValues;
-    final private ArrayList<Float> memoryPercentageValues;
-    final private ArrayList<Integer> syscrValues;
-    final private ArrayList<Integer> syscwValues;
-    final private ArrayList<Integer> volCtxtValues;
-    final private ArrayList<Integer> invCtxtValues;
-    final private ArrayList<Long> memoryValues;
-    final private ArrayList<Long> rssValues;
-    final private ArrayList<Long> vmemValues;
-    final private ArrayList<Long> peakRssValues;
-    final private ArrayList<Long> peakVmemValues;
-    final private ArrayList<Long> rcharValues;
-    final private ArrayList<Long> wcharValues;
-    final private ArrayList<Long> readBytesValues;
-    final private ArrayList<Long> writeBytesValues;
-    final private ArrayList<Long> realtimeValues;
+    private final ArrayList<Integer> taskIds;
+    private final ArrayList<Float> cpusValues;
+    private final ArrayList<Float> cpuPercentageValues;
+    private final ArrayList<Float> memoryPercentageValues;
+    private final ArrayList<Integer> syscrValues;
+    private final ArrayList<Integer> syscwValues;
+    private final ArrayList<Integer> volCtxtValues;
+    private final ArrayList<Integer> invCtxtValues;
+    private final ArrayList<Long> memoryValues;
+    private final ArrayList<Long> rssValues;
+    private final ArrayList<Long> vmemValues;
+    private final ArrayList<Long> peakRssValues;
+    private final ArrayList<Long> peakVmemValues;
+    private final ArrayList<Long> rcharValues;
+    private final ArrayList<Long> wcharValues;
+    private final ArrayList<Long> readBytesValues;
+    private final ArrayList<Long> writeBytesValues;
+    private final ArrayList<Long> realtimeValues;
 
     public NextflowTraceStorage() {
         this.nodes = new ArrayList<>();
