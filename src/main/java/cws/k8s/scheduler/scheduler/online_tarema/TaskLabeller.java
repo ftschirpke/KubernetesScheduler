@@ -23,23 +23,19 @@ public class TaskLabeller {
     /**
      * Recalculates the labels for all tasks based on the historic traces and weights for each label group.
      */
-    public void recalculateLabels(NextflowTraceStorage traces,
-                                  float[] cpuGroupWeights,
-                                  float[] ramGroupWeights,
-                                  float[] readGroupWeights,
-                                  float[] writeGroupWeights) {
+    public void recalculateLabels(NextflowTraceStorage traces, NodeLabeller.GroupWeights groupWeights) {
         if (traces.empty()) {
             log.info("No traces to calculate node labels from");
             return;
         }
         List<Float> allCpuPercentages = traces.getAll(NextflowTraceStorage.FloatField.CPU_PERCENTAGE);
-        Percentiles cpuPercentiles = new Percentiles(floatMin(allCpuPercentages), floatMax(allCpuPercentages), cpuGroupWeights);
+        Percentiles cpuPercentiles = new Percentiles(floatMin(allCpuPercentages), floatMax(allCpuPercentages), groupWeights.cpu());
         List<Long> allRssValues = traces.getAll(NextflowTraceStorage.LongField.RESIDENT_SET_SIZE);
-        Percentiles memoryPercentiles = new Percentiles(longMin(allRssValues), longMax(allRssValues), ramGroupWeights);
+        Percentiles memoryPercentiles = new Percentiles(longMin(allRssValues), longMax(allRssValues), groupWeights.ram());
         List<Long> allRCharValues = traces.getAll(NextflowTraceStorage.LongField.CHARACTERS_READ);
-        Percentiles readPercentiles = new Percentiles(longMin(allRCharValues), longMax(allRCharValues), readGroupWeights);
+        Percentiles readPercentiles = new Percentiles(longMin(allRCharValues), longMax(allRCharValues), groupWeights.read());
         List<Long> allWCharValues = traces.getAll(NextflowTraceStorage.LongField.CHARACTERS_WRITTEN);
-        Percentiles writePercentiles = new Percentiles(longMin(allWCharValues), longMax(allWCharValues), writeGroupWeights);
+        Percentiles writePercentiles = new Percentiles(longMin(allWCharValues), longMax(allWCharValues), groupWeights.write());
 
         for (String abstractTaskName : traces.getAbstractTaskNames()) {
             Stream<Float> cpuValues = traces.getForAbstractTask(abstractTaskName, NextflowTraceStorage.FloatField.CPU_PERCENTAGE);

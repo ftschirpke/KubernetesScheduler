@@ -199,57 +199,12 @@ public class OnlineTaremaScheduler extends Scheduler {
     void recalculateTaskLabels() {
         long startTime = System.currentTimeMillis();
 
-        Map<String, Labels> nodesLabels = nodeLabeller.getLabels();
-        if (nodesLabels.isEmpty()) {
-            log.info("Online Tarema Scheduler: No node labels to calculate task labels from");
+        NodeLabeller.GroupWeights groupWeights = nodeLabeller.getGroupWeights();
+        if (groupWeights == null) {
+            log.info("Online Tarema Scheduler: No group weights available to recalculate task labels.");
             return;
         }
-        Labels maxLabels = nodeLabeller.getMaxLabels();
-
-        float totalCpu = 0;
-        float[] cpusPerCpuGroup = new float[maxLabels.getCpuLabel()];
-        long totalMemory = 0;
-        long[] memoryPerMemGroup = new long[maxLabels.getMemLabel()];
-        int totalNodes = 0;
-        int[] nodesPerSequentialReadGroup = new int[maxLabels.getSequentialReadLabel()];
-        int[] nodesPerSequentialWriteGroup = new int[maxLabels.getSequentialWriteLabel()];
-
-        for (NodeWithAlloc node : getNodeList()) {
-            String nodeName = node.getName();
-            if (!nodesLabels.containsKey(nodeName)) {
-                continue;
-            }
-            Labels nodeLabels = nodesLabels.get(nodeName);
-
-            totalCpu += node.getMaxResources().getCpu().floatValue();
-            cpusPerCpuGroup[nodeLabels.getCpuLabel() - 1] += node.getMaxResources().getCpu().floatValue();
-            totalMemory += node.getMaxResources().getRam().longValue();
-            memoryPerMemGroup[nodeLabels.getMemLabel() - 1] += node.getMaxResources().getRam().longValue();
-            totalNodes++;
-            nodesPerSequentialReadGroup[nodeLabels.getSequentialReadLabel() - 1]++;
-            nodesPerSequentialWriteGroup[nodeLabels.getSequentialWriteLabel() - 1]++;
-        }
-
-        float[] cpuGroupWeights = new float[maxLabels.getCpuLabel()];
-        for (int i = 0; i < maxLabels.getCpuLabel(); i++) {
-            cpuGroupWeights[i] = cpusPerCpuGroup[i] / totalCpu;
-        }
-        float[] ramGroupWeights = new float[maxLabels.getMemLabel()];
-        for (int i = 0; i < maxLabels.getMemLabel(); i++) {
-            ramGroupWeights[i] = (float) memoryPerMemGroup[i] / totalMemory;
-        }
-        float[] readGroupWeights = new float[maxLabels.getSequentialReadLabel()];
-        for (int i = 0; i < maxLabels.getSequentialReadLabel(); i++) {
-            readGroupWeights[i] = (float) nodesPerSequentialReadGroup[i] / totalNodes;
-            // TODO: are there ways to differentiate nodes reading capabilities?
-        }
-        float[] writeGroupWeights = new float[maxLabels.getSequentialWriteLabel()];
-        for (int i = 0; i < maxLabels.getSequentialReadLabel(); i++) {
-            writeGroupWeights[i] = (float) nodesPerSequentialWriteGroup[i] / totalNodes;
-            // TODO: are there ways to differentiate nodes writing capabilities?
-        }
-
-        taskLabeller.recalculateLabels(historicTraces, cpuGroupWeights, ramGroupWeights, readGroupWeights, writeGroupWeights);
+        taskLabeller.recalculateLabels(historicTraces, groupWeights);
 
         long endTime = System.currentTimeMillis();
         log.info("Online Tarema Scheduler: Task labels recalculated in {} ms.", endTime - startTime);

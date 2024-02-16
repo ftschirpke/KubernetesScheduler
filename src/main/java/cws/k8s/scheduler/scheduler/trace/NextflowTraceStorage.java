@@ -113,16 +113,19 @@ public class NextflowTraceStorage {
 
     public void saveTaskTrace(Task task) {
         NextflowTraceRecord trace = NextflowTraceRecord.from_task(task);
+        int taskId = task.getId();
         TaskConfig config = task.getConfig();
-
         NodeWithAlloc node = task.getNode();
+        saveTrace(trace, taskId, config, node);
+    }
+    public void saveTrace(NextflowTraceRecord trace, int taskId, TaskConfig config, NodeWithAlloc node) {
         int nodeIndex = getNodeIndex(node);
         nodeIds.add(nodeIndex);
         String abstractTaskName = config.getTask();
         int abstractTaskIndex = getAbstractTaskIndex(abstractTaskName);
         abstractTaskIds.add(abstractTaskIndex);
 
-        taskIds.add(task.getId());
+        taskIds.add(taskId);
         cpusValues.add(config.getCpus());
         memoryValues.add(config.getMemoryInBytes());
         cpuPercentageValues.add(trace.getPercentageValue("%cpu"));
