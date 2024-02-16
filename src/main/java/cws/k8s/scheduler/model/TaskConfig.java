@@ -44,6 +44,17 @@ public class TaskConfig {
         this.workDir = workDir;
     }
 
+    public TaskConfig(String task, float cpus, long memoryInBytes) {
+        this.task = task;
+        this.name = null;
+        this.schedulerParams = null;
+        this.inputs = new TaskInput( null, null, null, new LinkedList<>() );
+        this.runName = null;
+        this.cpus = cpus;
+        this.memoryInBytes = memoryInBytes;
+        this.workDir = null;
+    }
+
     @Getter
     @ToString
     @NoArgsConstructor( access = AccessLevel.PRIVATE, force = true )

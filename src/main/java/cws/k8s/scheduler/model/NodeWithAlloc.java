@@ -34,6 +34,14 @@ public class NodeWithAlloc extends Node implements Comparable<NodeWithAlloc> {
         this.getMetadata().setName( name );
     }
 
+    public NodeWithAlloc( String name, Requirements maxResources ) {
+        this.kubernetesClient = null;
+        this.maxResources = maxResources;
+        this.assignedPods = new HashMap<>();
+        this.setMetadata( new ObjectMeta() );
+        this.getMetadata().setName( name );
+    }
+
     public NodeWithAlloc( Node node, KubernetesClient kubernetesClient ) {
 
         this.kubernetesClient = kubernetesClient;
