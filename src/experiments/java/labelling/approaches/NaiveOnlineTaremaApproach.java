@@ -6,34 +6,33 @@ import cws.k8s.scheduler.scheduler.online_tarema.NodeLabeller;
 import cws.k8s.scheduler.scheduler.online_tarema.TaskLabeller;
 import cws.k8s.scheduler.scheduler.trace.NextflowTraceRecord;
 import cws.k8s.scheduler.scheduler.trace.NextflowTraceStorage;
-import labelling.LotaruTraces;
 
+import java.util.stream.Stream;
 
 /*
- * This class represents the Tarema approach.
- * The Tarema approach retrieves node labels from benchmarks before the scheduling process starts.
- * At runtime, only the task labels are updated.
+ * This class represents the Naive Online Tarema approach to labelling tasks.
+ * The Naive approach retrieves node labels from task traces through a regression model at runtime.
+ * The task labelling is naively copied from the original Tarema approach.
  */
-public class TaremaApproach implements Approach {
+public class NaiveOnlineTaremaApproach {
     int nextTaskId = 0;
     NextflowTraceStorage traceStorage;
-
-    NodeLabeller.NodeLabelState fixedNodeLabels;
-
+    NodeLabeller nodeLabeller;
     TaskLabeller taskLabeller;
 
-    public TaremaApproach() {
+    public NaiveOnlineTaremaApproach() {
         this.taskLabeller = new TaskLabeller();
+        this.nodeLabeller = new NodeLabeller();
     }
 
     public void initialize() {
-        fixedNodeLabels = NodeLabeller.labelOnce(LotaruTraces.lotaruBenchmarkResults);
     }
 
     public void onTaskTermination(NextflowTraceRecord trace, TaskConfig config, NodeWithAlloc node) {
         traceStorage.saveTrace(trace, nextTaskId, config, node);
         nextTaskId++;
 
-        taskLabeller.recalculateLabels(traceStorage, fixedNodeLabels.groupWeights());
+        nodeLabeller.recalculateLabels(traceStorage, Stream.of(node));
+        taskLabeller.recalculateLabels(traceStorage, nodeLabeller.getGroupWeights());
     }
 }
