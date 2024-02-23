@@ -11,27 +11,24 @@ import java.util.Map;
 import java.util.stream.Stream;
 
 @Slf4j
-public class NodeLabeller {
+public class NodeFirstLabeller {
     @Getter
-    private Labels maxLabels;
+    private Labels maxLabels = null;
     @Getter
-    private final Map<NodeWithAlloc, Labels> labels;
-    private final Map<NodeWithAlloc, NodeSpeedEstimation> estimations;
-
-    public NodeLabeller() {
-        this.maxLabels = null;
-        this.labels = new HashMap<>();
-        this.estimations = new HashMap<>();
-    }
+    private final Map<NodeWithAlloc, Labels> labels = new HashMap<>();
+    private final Map<NodeWithAlloc, NodeSpeedEstimation> estimations = new HashMap<>();
 
     public record NodeLabelState(Labels maxLabels, Map<NodeWithAlloc, Labels> labels, GroupWeights groupWeights) {
     }
 
     public static NodeLabelState labelOnce(Map<NodeWithAlloc, NodeSpeedEstimation> estimations) {
-        NodeLabeller labeller = new NodeLabeller();
+        NodeFirstLabeller labeller = new NodeFirstLabeller();
         labeller.estimations.putAll(estimations);
-        labeller.recalculateGroups();
-        return new NodeLabelState(labeller.getMaxLabels(), labeller.getLabels(), labeller.getGroupWeights());
+        labeller.kmeansClustering();
+        Labels maxLabels = labeller.getMaxLabels();
+        Map<NodeWithAlloc, Labels> labels = labeller.getLabels();
+        GroupWeights groupWeights = GroupWeights.forNodeLabels(maxLabels, labels);
+        return new NodeLabelState(maxLabels, labels, groupWeights);
     }
 
     private void runBayesForNode(NextflowTraceStorage traces, NodeWithAlloc node) {
@@ -112,29 +109,25 @@ public class NodeLabeller {
         }
     }
 
-    public boolean recalculateLabels(NextflowTraceStorage traces) {
-        return recalculateLabels(traces, traces.getNodes().stream());
-    }
-
     public boolean recalculateLabels(NextflowTraceStorage traces, Stream<NodeWithAlloc> nodesWithNewTraces) {
         if (traces.empty()) {
             log.info("No traces to calculate node labels from");
             return false;
         }
         nodesWithNewTraces.forEach(node -> runBayesForNode(traces, node));
-        return recalculateGroups();
+        return kmeansClustering();
     }
 
-    private boolean recalculateGroups() {
+    private boolean kmeansClustering() {
         log.info("Online Tarema Scheduler: Running kmeans.py");
-        Process bayesProcess;
+        Process kmeansProcess;
         try {
-            bayesProcess = new ProcessBuilder("external/venv/bin/python3", "external/kmeans.py").start();
+            kmeansProcess = new ProcessBuilder("external/venv/bin/python3", "external/kmeans.py").start();
         } catch (IOException e) {
             log.error("Online Tarema Scheduler: Failed to start kmeans.py process", e);
             return false;
         }
-        OutputStream in = bayesProcess.getOutputStream();
+        OutputStream in = kmeansProcess.getOutputStream();
         PrintWriter writer = new PrintWriter(in);
 
         Map<String, NodeWithAlloc> nodesWritten = new HashMap<>();
@@ -150,7 +143,7 @@ public class NodeLabeller {
         writer.close();
         int exitCode;
         try {
-            exitCode = bayesProcess.waitFor();
+            exitCode = kmeansProcess.waitFor();
             log.info("Online Tarema Scheduler: kmeans.py exited with code {}", exitCode);
         } catch (InterruptedException e) {
             log.error("Online Tarema Scheduler: Failed to wait for kmeans.py to exit", e);
@@ -159,7 +152,7 @@ public class NodeLabeller {
 
         String line;
         if (exitCode != 0) {
-            BufferedReader stderrReader = new BufferedReader(new InputStreamReader(bayesProcess.getErrorStream()));
+            BufferedReader stderrReader = new BufferedReader(new InputStreamReader(kmeansProcess.getErrorStream()));
             try {
                 while ((line = stderrReader.readLine()) != null) {
                     log.error("Online Tarema Scheduler: kmeans.py stderr: {}", line);
@@ -170,12 +163,11 @@ public class NodeLabeller {
             return false;
         }
 
-        boolean cpuGroupsChanged = false;
-        boolean memGroupsChanged = false;
-        boolean readGroupsChanged = false;
-        boolean writeGroupsChanged = false;
-        BufferedReader stdoutReader = new BufferedReader(new InputStreamReader(bayesProcess.getInputStream()));
+        boolean labelsChanged = false;
+        BufferedReader stdoutReader = new BufferedReader(new InputStreamReader(kmeansProcess.getInputStream()));
         try {
+            Labels newMaxLabels = null;
+            Map<NodeWithAlloc, Labels> newNodeLabels = new HashMap<>();
             while ((line = stdoutReader.readLine()) != null) {
                 if (line.isEmpty()) {
                     continue;
@@ -196,96 +188,39 @@ public class NodeLabeller {
                     mem = Integer.parseInt(parts[2]);
                     read = Integer.parseInt(parts[3]);
                     write = Integer.parseInt(parts[4]);
+                    log.info("Online Tarema Scheduler: kmeans.py: {} {} {} {} {}", rowName, cpu, mem, read, write);
                 } catch (NumberFormatException e) {
                     log.error("Online Tarema Scheduler: kmeans.py UNEXPECTED: {}", line);
                     continue;
                 }
+
+                Labels newLabels = new Labels(cpu, mem, read, write);
                 if (rowName.equals("maxLabels")) {
-                    if (maxLabels == null) {
-                        maxLabels = new Labels(cpu, mem, read, write);
-                        cpuGroupsChanged = true;
-                        memGroupsChanged = true;
-                        readGroupsChanged = true;
-                        writeGroupsChanged = true;
-                    } else {
-                        cpuGroupsChanged |= maxLabels.setCpuLabel(cpu);
-                        memGroupsChanged |= maxLabels.setMemLabel(mem);
-                        readGroupsChanged |= maxLabels.setSequentialReadLabel(read);
-                        writeGroupsChanged |= maxLabels.setSequentialWriteLabel(write);
+                    if (!maxLabels.equals(newLabels)) {
+                        newMaxLabels = newLabels;
                     }
                 } else if (nodesWritten.containsKey(rowName)) {
                     NodeWithAlloc node = nodesWritten.get(rowName);
                     Labels nodeLabels = labels.get(node);
-                    if (nodeLabels == null) {
-                        nodeLabels = new Labels(cpu, mem, read, write);
-                        labels.put(node, nodeLabels);
-                    } else {
-                        cpuGroupsChanged |= nodeLabels.setCpuLabel(cpu);
-                        memGroupsChanged |= nodeLabels.setMemLabel(mem);
-                        readGroupsChanged |= nodeLabels.setSequentialReadLabel(read);
-                        writeGroupsChanged |= nodeLabels.setSequentialWriteLabel(write);
+                    if (!nodeLabels.equals(newLabels)) {
+                        newNodeLabels.put(node, newLabels);
                     }
                 } else {
                     log.error("Online Tarema Scheduler: kmeans.py UNEXPECTED {}", rowName);
                 }
             }
+            if (newMaxLabels != null) {
+                maxLabels = newMaxLabels;
+                labelsChanged = true;
+            }
+            if (!newNodeLabels.isEmpty()) {
+                labels.putAll(newNodeLabels);
+                labelsChanged = true;
+            }
         } catch (IOException e) {
             log.error("Online Tarema Scheduler: Failed to read kmeans.py stdout", e);
         }
-        return cpuGroupsChanged || memGroupsChanged || readGroupsChanged || writeGroupsChanged;
-    }
-
-    public GroupWeights getGroupWeights() {
-        if (labels.isEmpty()) {
-            log.info("Online Tarema Scheduler: No node labels to calculate task labels from");
-            return null;
-        }
-
-        float totalCpu = 0;
-        float[] cpusPerCpuGroup = new float[maxLabels.getCpuLabel()];
-        long totalMemory = 0;
-        long[] memoryPerMemGroup = new long[maxLabels.getMemLabel()];
-        int totalNodes = 0;
-        int[] nodesPerSequentialReadGroup = new int[maxLabels.getSequentialReadLabel()];
-        int[] nodesPerSequentialWriteGroup = new int[maxLabels.getSequentialWriteLabel()];
-
-        for (Map.Entry<NodeWithAlloc, Labels> e : labels.entrySet()) {
-            NodeWithAlloc node = e.getKey();
-            String nodeName = node.getName();
-            Labels nodeLabels = e.getValue();
-
-            totalCpu += node.getMaxResources().getCpu().floatValue();
-            cpusPerCpuGroup[nodeLabels.getCpuLabel() - 1] += node.getMaxResources().getCpu().floatValue();
-            totalMemory += node.getMaxResources().getRam().longValue();
-            memoryPerMemGroup[nodeLabels.getMemLabel() - 1] += node.getMaxResources().getRam().longValue();
-            totalNodes++;
-            nodesPerSequentialReadGroup[nodeLabels.getSequentialReadLabel() - 1]++;
-            nodesPerSequentialWriteGroup[nodeLabels.getSequentialWriteLabel() - 1]++;
-        }
-
-        float[] cpuGroupWeights = new float[maxLabels.getCpuLabel()];
-        for (int i = 0; i < maxLabels.getCpuLabel(); i++) {
-            cpuGroupWeights[i] = cpusPerCpuGroup[i] / totalCpu;
-        }
-        float[] ramGroupWeights = new float[maxLabels.getMemLabel()];
-        for (int i = 0; i < maxLabels.getMemLabel(); i++) {
-            ramGroupWeights[i] = (float) memoryPerMemGroup[i] / totalMemory;
-        }
-        float[] readGroupWeights = new float[maxLabels.getSequentialReadLabel()];
-        for (int i = 0; i < maxLabels.getSequentialReadLabel(); i++) {
-            readGroupWeights[i] = (float) nodesPerSequentialReadGroup[i] / totalNodes;
-            // TODO: are there ways to differentiate nodes reading capabilities?
-        }
-        float[] writeGroupWeights = new float[maxLabels.getSequentialWriteLabel()];
-        for (int i = 0; i < maxLabels.getSequentialReadLabel(); i++) {
-            writeGroupWeights[i] = (float) nodesPerSequentialWriteGroup[i] / totalNodes;
-            // TODO: are there ways to differentiate nodes writing capabilities?
-        }
-
-        return new GroupWeights(cpuGroupWeights, ramGroupWeights, readGroupWeights, writeGroupWeights);
-    }
-
-    public record GroupWeights(float[] cpu, float[] ram, float[] read, float[] write) {
+        return labelsChanged;
     }
 
     private <T> void writeValues(PrintWriter writer, String name, Stream<T> values) {
@@ -310,7 +245,8 @@ public class NodeLabeller {
     private MeanStdRecord meanStdFromLine(String line) throws NumberFormatException {
         String[] parts = line.split(",");
         try {
-            return new MeanStdRecord(Float.parseFloat(parts[1]), Float.parseFloat(parts[2]));
+            return new MeanStdRecord(-Float.parseFloat(parts[1]), Float.parseFloat(parts[2]));
+            // HACK: negative mean to inverse the order (higher mean (slower node) -> lower label)
         } catch (NumberFormatException e) {
             log.error("Online Tarema Scheduler: Failed to parse mean and std from line \"{}\"", line);
             return null;

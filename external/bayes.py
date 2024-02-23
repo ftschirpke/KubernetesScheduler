@@ -5,7 +5,6 @@ import pandas as pd
 from sklearn.linear_model import BayesianRidge
 
 RUNTIME_COLUMN = "realtime"  # TODO: Find out if this is 0 often enough to be a problem
-# RUNTIME_COLUMN = "duration"  # TODO: Find out what the difference is to "realtime"
 CPU_COLUMNS = ["cpus", "%cpu"]
 MEM_COLUMNS = ["vmem", "rss"]  # TODO: Maybe "vmem" is not a good predictor and/or better ones exist
 SEQ_READ_COLUMNS = ["rchar"]

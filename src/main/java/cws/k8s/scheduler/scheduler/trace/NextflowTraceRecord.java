@@ -1,6 +1,7 @@
 package cws.k8s.scheduler.scheduler.trace;
 
 import cws.k8s.scheduler.model.Task;
+import lombok.ToString;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.ArrayUtils;
 
@@ -12,6 +13,7 @@ import java.util.HashMap;
 import java.util.stream.Stream;
 
 @Slf4j
+@ToString
 public class NextflowTraceRecord {
     static final String TRACE_FILE_NAME = ".command.trace";
     static final String NEXTFLOW_TRACE_VERSION = "nextflow.trace/v2";

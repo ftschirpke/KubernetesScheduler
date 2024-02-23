@@ -1,97 +1,42 @@
 package cws.k8s.scheduler.scheduler;
 
+import cws.k8s.scheduler.client.KubernetesClient;
 import cws.k8s.scheduler.model.*;
 import cws.k8s.scheduler.model.tracing.TraceRecord;
 import cws.k8s.scheduler.scheduler.nodeassign.NodeAssign;
 import cws.k8s.scheduler.scheduler.nodeassign.RandomNodeAssign;
 import cws.k8s.scheduler.scheduler.online_tarema.Labels;
-import cws.k8s.scheduler.scheduler.online_tarema.NodeLabeller;
-import cws.k8s.scheduler.scheduler.online_tarema.TaskLabeller;
 import cws.k8s.scheduler.scheduler.prioritize.MinInputPrioritize;
-import cws.k8s.scheduler.client.KubernetesClient;
 import cws.k8s.scheduler.scheduler.prioritize.Prioritize;
 import cws.k8s.scheduler.scheduler.prioritize.RankMinPrioritize;
-import cws.k8s.scheduler.scheduler.trace.NextflowTraceStorage;
 import cws.k8s.scheduler.util.NodeTaskAlignment;
 import lombok.extern.slf4j.Slf4j;
 
 import java.math.BigDecimal;
 import java.util.*;
-import java.util.stream.Stream;
 
 @Slf4j
-public class OnlineTaremaScheduler extends Scheduler {
-    static final long TEN_SECONDS = 10000;
-    static final int MIN_TASKS_FOR_NODE_LABELLING = 2;
+public abstract class TaremaScheduler extends Scheduler {
 
-    private final Prioritize minInputPrioritize;
-    private final Prioritize minRankPrioritize;
-    private final NodeAssign randomNodeAssign;
+    private final Prioritize minInputPrioritize = new MinInputPrioritize();
+    private final Prioritize minRankPrioritize = new RankMinPrioritize();
+    private final NodeAssign randomNodeAssign = new RandomNodeAssign();
 
-    private final NextflowTraceStorage historicTraces;
-    private final NodeLabeller nodeLabeller;
-    private final TaskLabeller taskLabeller;
 
-    private final Set<NodeWithAlloc> availableNodes;
-    private final List<NodeWithAlloc> nodesWithNewData;
-    private long lastNodeLabelsRecalculation;
+    protected final Set<NodeWithAlloc> availableNodes = new HashSet<>(); // nodes available to this execution (may not be the whole cluster)
+    // TODO: check if "availableNodes" is needed
 
-    public OnlineTaremaScheduler(String execution,
-                                 KubernetesClient client,
-                                 String namespace,
-                                 SchedulerConfig config) {
+    protected TaremaScheduler(String execution, KubernetesClient client, String namespace, SchedulerConfig config) {
         super(execution, client, namespace, config);
-        this.minInputPrioritize = new MinInputPrioritize();
-        this.minRankPrioritize = new RankMinPrioritize();
-        this.randomNodeAssign = new RandomNodeAssign();
         this.randomNodeAssign.registerScheduler(this);
-
-        this.historicTraces = new NextflowTraceStorage();
-        this.nodeLabeller = new NodeLabeller();
-        this.taskLabeller = new TaskLabeller();
-
-        this.availableNodes = new HashSet<>(); // nodes available to this execution (may not be the whole cluster)
-        this.nodesWithNewData = new ArrayList<>();
-        this.lastNodeLabelsRecalculation = System.currentTimeMillis();
     }
 
-    @Override
-    void onPodTermination(PodWithAge pod) {
-        super.onPodTermination(pod);
-        log.info("Online Tarema Scheduler: Pod {} terminated. Saving its trace...", pod.getName());
-        Task task;
-        try {
-            task = getTaskByPod(pod);
-        } catch (IllegalStateException e) {
-            log.error("Online Tarema Scheduler: Pod {} has no task associated. Skipping trace...", pod.getName());
-            return;
-        }
-        historicTraces.saveTaskTrace(task);
-        log.info("Online Tarema Scheduler: Pod {} trace saved.", pod.getName());
+    abstract Map<NodeWithAlloc, Labels> getNodeLabels();
 
-        NodeWithAlloc node = task.getNode();
-        // only calculate node labels if all nodes have data
-        // which is already the case if all nodes are already labelled
-        boolean allNodesAlreadyLabelled = historicTraces.getNodes().size() == availableNodes.size();
-        boolean allNodesHaveData = nodesWithNewData.size() == availableNodes.size();
-        if (allNodesAlreadyLabelled || allNodesHaveData) {
-            long finishedTasksOnNode = historicTraces.getTaskIdsForNode(node).count();
-            if (finishedTasksOnNode >= MIN_TASKS_FOR_NODE_LABELLING) {
-                nodesWithNewData.add(node);
-            }
-            if (System.currentTimeMillis() - lastNodeLabelsRecalculation > TEN_SECONDS) {
-                recalculateNodeLabels(nodesWithNewData.stream());
-                nodesWithNewData.clear();
-            }
-        }
-        recalculateTaskLabels();
-    }
+    abstract Map<String, Labels> getTaskLabels();
 
     @Override
-    public ScheduleObject getTaskNodeAlignment(
-            final List<Task> unscheduledTasks,
-            final Map<NodeWithAlloc, Requirements> availableByNode
-    ) {
+    public ScheduleObject getTaskNodeAlignment(final List<Task> unscheduledTasks, final Map<NodeWithAlloc, Requirements> availableByNode) {
         long start = System.currentTimeMillis();
         if (traceEnabled) {
             int index = 1;
@@ -101,12 +46,12 @@ public class OnlineTaremaScheduler extends Scheduler {
         }
 
         List<NodeTaskAlignment> alignment;
-        if (nodeLabeller.getLabels().isEmpty()) {
+        if (getNodeLabels().isEmpty()) {
             minInputPrioritize.sortTasks(unscheduledTasks);
             alignment = randomNodeAssign.getTaskNodeAlignment(unscheduledTasks, availableByNode);
         } else {
             minRankPrioritize.sortTasks(unscheduledTasks);
-            alignment = align(unscheduledTasks, availableByNode);
+            alignment = alignUsingLabels(unscheduledTasks, availableByNode);
         }
 
         long timeDelta = System.currentTimeMillis() - start;
@@ -119,13 +64,13 @@ public class OnlineTaremaScheduler extends Scheduler {
         return scheduleObject;
     }
 
-    private List<NodeTaskAlignment> align(List<Task> unscheduledTasks, Map<NodeWithAlloc, Requirements> availableByNode) {
+    protected List<NodeTaskAlignment> alignUsingLabels(List<Task> unscheduledTasks, Map<NodeWithAlloc, Requirements> availableByNode) {
         ArrayList<NodeTaskAlignment> alignment = new ArrayList<>();
         for (final Task task : unscheduledTasks) {
             final PodWithAge pod = task.getPod();
             log.info("Pod: " + pod.getName() + " Requested Resources: " + pod.getRequest());
             String absoluteTaskName = task.getConfig().getTask();
-            Labels taskLabels = taskLabeller.getLabels().get(absoluteTaskName);
+            Labels taskLabels = getTaskLabels().get(absoluteTaskName);
             int triedOnNodes = 0;
             NodeWithAlloc bestNode = null;
             if (taskLabels == null) {
@@ -157,7 +102,7 @@ public class OnlineTaremaScheduler extends Scheduler {
                     }
                     if (canSchedulePodOnNode(requirements, pod, node)) {
                         triedOnNodes++;
-                        Labels nodeLabels = nodeLabeller.getLabels().get(node.getName());
+                        Labels nodeLabels = getNodeLabels().get(node);
                         int labelDifference;
                         if (nodeLabels == null) {
                             labelDifference = 0; // prioritize nodes with no labels to get them labeled
@@ -194,32 +139,5 @@ public class OnlineTaremaScheduler extends Scheduler {
         final BigDecimal ramMinValue = requirements.getRam().subtract(podRamRequest);
         final double ramScore = ramMinValue.doubleValue() / ramMaxValue.doubleValue();
         return Double.min(cpuScore, ramScore);
-    }
-
-    void recalculateTaskLabels() {
-        long startTime = System.currentTimeMillis();
-
-        NodeLabeller.GroupWeights groupWeights = nodeLabeller.getGroupWeights();
-        if (groupWeights == null) {
-            log.info("Online Tarema Scheduler: No group weights available to recalculate task labels.");
-            return;
-        }
-        taskLabeller.recalculateLabels(historicTraces, groupWeights);
-
-        long endTime = System.currentTimeMillis();
-        log.info("Online Tarema Scheduler: Task labels recalculated in {} ms.", endTime - startTime);
-        log.info("Online Tarema Scheduler: New task labels are:\n{}", taskLabeller.getLabels());
-    }
-
-    public void recalculateNodeLabels(Stream<NodeWithAlloc> nodesWithNewData) {
-        long startTime = System.currentTimeMillis();
-        boolean changed = nodeLabeller.recalculateLabels(historicTraces, nodesWithNewData);
-        long endTime = System.currentTimeMillis();
-        log.info("Online Tarema Scheduler: Node labels recalculated in {} ms.", endTime - startTime);
-        lastNodeLabelsRecalculation = endTime;
-        if (!changed) {
-            return;
-        }
-        log.info("Online Tarema Scheduler: New node labels are:\n{}", nodeLabeller.getLabels());
     }
 }

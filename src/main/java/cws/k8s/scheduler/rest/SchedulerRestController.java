@@ -6,7 +6,7 @@ import cws.k8s.scheduler.client.KubernetesClient;
 import cws.k8s.scheduler.dag.Vertex;
 import cws.k8s.scheduler.model.SchedulerConfig;
 import cws.k8s.scheduler.model.TaskConfig;
-import cws.k8s.scheduler.scheduler.OnlineTaremaScheduler;
+import cws.k8s.scheduler.scheduler.NodeFirstOnlineTaremaScheduler;
 import cws.k8s.scheduler.scheduler.PrioritizeAssignScheduler;
 import cws.k8s.scheduler.scheduler.Scheduler;
 import cws.k8s.scheduler.scheduler.prioritize.*;
@@ -107,7 +107,7 @@ public class SchedulerRestController {
 
         switch ( strategy.toLowerCase() ){
             case "online_tarema":
-                scheduler = new OnlineTaremaScheduler( execution, client, namespace, config );
+                scheduler = new NodeFirstOnlineTaremaScheduler( execution, client, namespace, config );
                 break;
             default: {
                 final String[] split = strategy.split( "-" );
