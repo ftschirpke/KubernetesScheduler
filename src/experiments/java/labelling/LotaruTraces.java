@@ -3,9 +3,11 @@ package labelling;
 import cws.k8s.scheduler.model.NodeWithAlloc;
 import cws.k8s.scheduler.model.Requirements;
 import cws.k8s.scheduler.model.TaskConfig;
-import cws.k8s.scheduler.scheduler.online_tarema.NodeLabeller;
+import cws.k8s.scheduler.scheduler.online_tarema.NodeFirstLabeller;
 import cws.k8s.scheduler.scheduler.trace.NextflowTraceRecord;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.lang3.ArrayUtils;
+import org.apache.commons.lang3.RandomUtils;
 
 import java.io.*;
 import java.math.BigDecimal;
@@ -19,31 +21,99 @@ public class LotaruTraces {
         BigDecimal mem = BigDecimal.valueOf((long) gigabytesMemory * 1024 * 1024 * 1024);
         return new Requirements(cpu, mem);
     }
+
     static NodeWithAlloc[] nodes = new NodeWithAlloc[]{
             new NodeWithAlloc("local", requirementsHelper(8, 16)),
-            new NodeWithAlloc("a1", requirementsHelper(2*4, 32)),
-            new NodeWithAlloc("a2", requirementsHelper(2*4, 32)),
+            new NodeWithAlloc("a1", requirementsHelper(2 * 4, 32)),
+            new NodeWithAlloc("a2", requirementsHelper(2 * 4, 32)),
             new NodeWithAlloc("n1", requirementsHelper(8, 16)),
             new NodeWithAlloc("n2", requirementsHelper(8, 16)),
             new NodeWithAlloc("c2", requirementsHelper(8, 32))
     };
+    public static final Map<String, NodeWithAlloc> machineNames = Map.of(
+            "local", nodes[0],
+            "asok01", nodes[1],
+            "asok02", nodes[2],
+            "n1", nodes[3],
+            "n2", nodes[4],
+            "c2", nodes[5]
+    );
     static String[] experiments = new String[]{"atacseq", "bacass", "chipseq", "eager", "methylseq"};
     static String[] labels = new String[]{"test", "train-1", "train-2"};
 
-    public static Map<NodeWithAlloc, NodeLabeller.NodeSpeedEstimation> lotaruBenchmarkResults = new HashMap<>(
+    public static Map<NodeWithAlloc, NodeFirstLabeller.NodeSpeedEstimation> lotaruBenchmarkResults = new HashMap<>(
             Map.of(
-                    nodes[0], new NodeLabeller.NodeSpeedEstimation(458, 18700, 414, 415),
-                    nodes[1], new NodeLabeller.NodeSpeedEstimation(223,11000,306,301),
-                    nodes[2], new NodeLabeller.NodeSpeedEstimation(223,11000,341,336),
-                    nodes[3], new NodeLabeller.NodeSpeedEstimation(369,13400,481,483),
-                    nodes[4], new NodeLabeller.NodeSpeedEstimation(468,17000,481,483),
-                    nodes[5], new NodeLabeller.NodeSpeedEstimation(523,18900,481,483)
+                    nodes[0], new NodeFirstLabeller.NodeSpeedEstimation(458, 18700, 414, 415),
+                    nodes[1], new NodeFirstLabeller.NodeSpeedEstimation(223, 11000, 306, 301),
+                    nodes[2], new NodeFirstLabeller.NodeSpeedEstimation(223, 11000, 341, 336),
+                    nodes[3], new NodeFirstLabeller.NodeSpeedEstimation(369, 13400, 481, 483),
+                    nodes[4], new NodeFirstLabeller.NodeSpeedEstimation(468, 17000, 481, 483),
+                    nodes[5], new NodeFirstLabeller.NodeSpeedEstimation(523, 18900, 481, 483)
             )
     );
 
     String[] csvHeader;
 
     Map<NodeWithAlloc, List<String[]>> csvData = new HashMap<>();
+    List<String> taskNames = new ArrayList<>();
+
+    private Stream<Map.Entry<NodeWithAlloc, String[]>> allLineEntries() {
+        return csvData.entrySet().stream().flatMap(entry -> {
+            NodeWithAlloc node = entry.getKey();
+            List<String[]> lines = entry.getValue();
+            return lines.stream().map(line -> Map.entry(node, line));
+        });
+    }
+
+    private Stream<String[]> allLines() {
+        return allLineEntries().map(Map.Entry::getValue);
+    }
+
+    Stream<String[]> allLinesByNode() {
+        return allLineEntries().sorted(Comparator.comparing(entry -> {
+            NodeWithAlloc node = entry.getKey();
+            return ArrayUtils.indexOf(nodes, node);
+        })).map(Map.Entry::getValue);
+    }
+
+    Stream<String[]> allLinesByTask() {
+        return allLines().sorted(Comparator.comparing(line -> {
+            String task = getFromLine("Task", line);
+            return taskNames.indexOf(task);
+        }));
+    }
+
+    Stream<String[]> allLinesFairly() {
+        return allLineEntries().sorted(Comparator.comparing(entry -> {
+            NodeWithAlloc node = entry.getKey();
+            int nodeIndex = ArrayUtils.indexOf(nodes, node);
+            String[] line = entry.getValue();
+            int indexInNode = csvData.get(node).indexOf(line);
+            return indexInNode * nodes.length + nodeIndex;
+        })).map(Map.Entry::getValue);
+    }
+
+    String[] getLineForTask(NodeWithAlloc node, String taskName) {
+        if (node == null) {
+            int idx = RandomUtils.nextInt(0, nodes.length);
+            node = nodes[idx];
+        }
+        if (taskName == null) {
+            int idx = RandomUtils.nextInt(0, taskNames.size());
+            taskName = taskNames.get(idx);
+        }
+        List<String[]> nodeData = csvData.get(node);
+        if (nodeData == null) {
+            return null;
+        }
+        for (int i = 0; i < nodeData.size(); i++) {
+            String[] row = nodeData.get(i);
+            if (getFromLine("Task", row).equals(taskName)) {
+                return nodeData.remove(i);
+            }
+        }
+        return null;
+    }
 
     void status() {
         System.out.println(Arrays.toString(csvHeader));
@@ -126,7 +196,12 @@ public class LotaruTraces {
                         if (!line.startsWith(experimentLabel)) {
                             continue;
                         }
-                        data.add(line.split(","));
+                        String[] dataLine = line.split(",");
+                        String taskName = getFromLine("Task", dataLine);
+                        if (!taskNames.contains(taskName)) {
+                            taskNames.add(taskName);
+                        }
+                        data.add(dataLine);
                     }
                     if (csvData.containsKey(node)) {
                         log.error("Duplicate data for {}", node);
@@ -149,7 +224,9 @@ public class LotaruTraces {
         );
     }
 
-    static String[] traceValues = new String[]{"Realtime", "%cpu", "cpus","rss", "rchar", "wchar", "read_bytes", "write_bytes", "vmem", "memory", "peak_rss"};
+    static String[] traceValues = new String[]{"Realtime", "%cpu", "cpus", "rss", "rchar", "wchar", "read_bytes", "write_bytes", "vmem", "memory", "peak_rss"};
+    static String[] zeroValues = new String[]{"%mem", "syscr", "syscw", "vol_ctxt", "inv_ctxt", "peak_vmem"};
+
     NextflowTraceRecord taskTraceFromLine(String[] line) {
         NextflowTraceRecord trace = new NextflowTraceRecord();
         for (String valueName : traceValues) {
@@ -158,11 +235,14 @@ public class LotaruTraces {
                 trace.insertValue(valueName.toLowerCase(), value);
             }
         }
+        for (String valueName : zeroValues) {
+            trace.insertValue(valueName.toLowerCase(), "0");
+        }
         return trace;
     }
 
-    private String getFromLine(String valueName, String[] line) {
-        int index = Arrays.asList(csvHeader).indexOf(valueName);
+    String getFromLine(String valueName, String[] line) {
+        int index = ArrayUtils.indexOf(csvHeader, valueName);
         return line[index];
     }
 }
