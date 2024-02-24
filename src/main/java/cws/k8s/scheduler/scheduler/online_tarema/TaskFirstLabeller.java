@@ -1,5 +1,7 @@
 package cws.k8s.scheduler.scheduler.online_tarema;
 
+import cws.k8s.scheduler.scheduler.trace.FloatField;
+import cws.k8s.scheduler.scheduler.trace.LongField;
 import cws.k8s.scheduler.scheduler.trace.NextflowTraceStorage;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
@@ -43,19 +45,19 @@ public class TaskFirstLabeller {
             // Stream<Float> cpuValues = traces.getForAbstractTask(taskName, NextflowTraceStorage.FloatField.CPU_PERCENTAGE);
             // writer.write(String.valueOf(floatAvg(cpuValues)));
             // writer.write(",");
-            Stream<Float> cpuPercValues = traces.getForAbstractTask(taskName, NextflowTraceStorage.FloatField.CPU_PERCENTAGE);
+            Stream<Float> cpuPercValues = traces.getForAbstractTask(taskName, FloatField.CPU_PERCENTAGE);
             writer.write(String.valueOf(floatAverage(cpuPercValues)));
             writer.write(",");
-            Stream<Long> rssValues = traces.getForAbstractTask(taskName, NextflowTraceStorage.LongField.RESIDENT_SET_SIZE);
+            Stream<Long> rssValues = traces.getForAbstractTask(taskName, LongField.RESIDENT_SET_SIZE);
             writer.write(String.valueOf(longAverage(rssValues)));
             writer.write(",");
             // Stream<Long> vmemValues = traces.getForAbstractTask(taskName, NextflowTraceStorage.LongField.VIRTUAL_MEMORY);
             // writer.write(String.valueOf(longAvg(vmemValues)));
             // writer.write(",");
-            Stream<Long> rCharValues = traces.getForAbstractTask(taskName, NextflowTraceStorage.LongField.CHARACTERS_READ);
+            Stream<Long> rCharValues = traces.getForAbstractTask(taskName, LongField.CHARACTERS_READ);
             writer.write(String.valueOf(longAverage(rCharValues)));
             writer.write(",");
-            Stream<Long> wCharValues = traces.getForAbstractTask(taskName, NextflowTraceStorage.LongField.CHARACTERS_WRITTEN);
+            Stream<Long> wCharValues = traces.getForAbstractTask(taskName, LongField.CHARACTERS_WRITTEN);
             writer.write(String.valueOf(longAverage(wCharValues)));
             writer.write("\n");
 

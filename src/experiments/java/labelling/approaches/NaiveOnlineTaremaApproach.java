@@ -9,6 +9,9 @@ import cws.k8s.scheduler.scheduler.online_tarema.TaskSecondLabeller;
 import cws.k8s.scheduler.scheduler.trace.NextflowTraceRecord;
 import cws.k8s.scheduler.scheduler.trace.NextflowTraceStorage;
 
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.stream.Stream;
 
@@ -19,15 +22,11 @@ import java.util.stream.Stream;
  */
 public class NaiveOnlineTaremaApproach implements Approach {
     int nextTaskId = 0;
-    NextflowTraceStorage traceStorage;
-    NodeFirstLabeller nodeFirstLabeller;
-    TaskSecondLabeller taskSecondLabeller;
+    NextflowTraceStorage traceStorage = new NextflowTraceStorage();
+    NodeFirstLabeller nodeFirstLabeller = new NodeFirstLabeller();
+    TaskSecondLabeller taskSecondLabeller = new TaskSecondLabeller();
+    Map<NodeWithAlloc, List<Integer>> nodesWithNewData = new HashMap<>();
 
-    public NaiveOnlineTaremaApproach() {
-        this.traceStorage = new NextflowTraceStorage();
-        this.taskSecondLabeller = new TaskSecondLabeller();
-        this.nodeFirstLabeller = new NodeFirstLabeller();
-    }
 
     public void initialize() {
     }
@@ -37,14 +36,21 @@ public class NaiveOnlineTaremaApproach implements Approach {
     }
 
     public void onTaskTermination(NextflowTraceRecord trace, TaskConfig config, NodeWithAlloc node) {
-        traceStorage.saveTrace(trace, nextTaskId, config, node);
+        int id = traceStorage.saveTrace(trace, nextTaskId, config, node);
         nextTaskId++;
+        nodesWithNewData.putIfAbsent(node, new ArrayList<>());
+        nodesWithNewData.get(node).add(id);
+    }
 
-        nodeFirstLabeller.recalculateLabels(traceStorage, Stream.of(node));
+    public void recalculate() {
+        nodeFirstLabeller.recalculateLabels(traceStorage, nodesWithNewData);
 
         Labels maxNodeLabels = nodeFirstLabeller.getMaxLabels();
         Map<NodeWithAlloc, Labels> nodeLabels = nodeFirstLabeller.getLabels();
         GroupWeights groupWeights = GroupWeights.forNodeLabels(maxNodeLabels, nodeLabels);
+        if (groupWeights == null) {
+            return;
+        }
 
         taskSecondLabeller.recalculateLabels(traceStorage, groupWeights);
     }

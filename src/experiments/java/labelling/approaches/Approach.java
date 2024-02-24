@@ -10,5 +10,7 @@ import java.util.Map;
 public interface Approach {
     void initialize();
     void onTaskTermination(NextflowTraceRecord trace, TaskConfig config, NodeWithAlloc node);
+
+    void recalculate();
     Map<NodeWithAlloc, Labels> getNodeLabels();
 }

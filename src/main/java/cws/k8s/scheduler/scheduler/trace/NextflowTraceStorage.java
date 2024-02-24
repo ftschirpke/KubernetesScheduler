@@ -11,32 +11,6 @@ import java.util.stream.Stream;
 
 public class NextflowTraceStorage {
 
-    public enum FloatField {
-        CPUS,
-        CPU_PERCENTAGE,
-        MEMORY_PERCENTAGE,
-    }
-
-    public enum IntegerField {
-        READ_SYSCALLS,
-        WRITE_SYSCALLS,
-        VOLUNTARY_CONTEXT_SWITCHES,
-        INVOLUNTARY_CONTEXT_SWITCHES,
-    }
-
-    public enum LongField {
-        MEMORY,
-        RESIDENT_SET_SIZE,
-        VIRTUAL_MEMORY,
-        PEAK_RESIDENT_SET_SIZE,
-        PEAK_VIRTUAL_MEMORY,
-        CHARACTERS_READ,
-        CHARACTERS_WRITTEN,
-        BYTES_READ,
-        BYTES_WRITTEN,
-        REALTIME,
-    }
-
     @Getter
     private final ArrayList<NodeWithAlloc> nodes;
     @Getter
@@ -111,20 +85,22 @@ public class NextflowTraceStorage {
         return nodes.isEmpty();
     }
 
-    public void saveTaskTrace(Task task) {
+    public int saveTaskTrace(Task task) {
         NextflowTraceRecord trace = NextflowTraceRecord.from_task(task);
         int taskId = task.getId();
         TaskConfig config = task.getConfig();
         NodeWithAlloc node = task.getNode();
-        saveTrace(trace, taskId, config, node);
+        return saveTrace(trace, taskId, config, node);
     }
-    public void saveTrace(NextflowTraceRecord trace, int taskId, TaskConfig config, NodeWithAlloc node) {
+
+    public int saveTrace(NextflowTraceRecord trace, int taskId, TaskConfig config, NodeWithAlloc node) {
         int nodeIndex = getNodeIndex(node);
         nodeIds.add(nodeIndex);
         String abstractTaskName = config.getTask();
         int abstractTaskIndex = getAbstractTaskIndex(abstractTaskName);
         abstractTaskIds.add(abstractTaskIndex);
 
+        int index = taskIds.size();
         taskIds.add(taskId);
         cpusValues.add(config.getCpus());
         memoryValues.add(config.getMemoryInBytes());
@@ -143,6 +119,7 @@ public class NextflowTraceStorage {
         readBytesValues.add(trace.getMemoryValue("read_bytes"));
         writeBytesValues.add(trace.getMemoryValue("write_bytes"));
         realtimeValues.add(trace.getTimeValue("realtime"));
+        return index;
     }
 
     public ArrayList<Float> getAll(FloatField field) {
@@ -186,6 +163,7 @@ public class NextflowTraceStorage {
     public Stream<Integer> getTaskIdsForNode(NodeWithAlloc node) {
         return getByIndex(getNodeIndex(node), nodeIds, taskIds);
     }
+
     public Stream<Integer> getTaskIdsForAbstractTask(String abstractTaskName) {
         return getByIndex(getAbstractTaskIndex(abstractTaskName), abstractTaskIds, taskIds);
     }
@@ -193,6 +171,11 @@ public class NextflowTraceStorage {
     public Stream<Float> getForNode(NodeWithAlloc node, FloatField field) {
         return getByIndex(getNodeIndex(node), nodeIds, getAll(field));
     }
+
+    public Stream<Float> getForIds(Stream<Integer> ids, FloatField field) {
+        return ids.map(i -> getAll(field).get(i));
+    }
+
     public Stream<Float> getForAbstractTask(String abstractTaskName, FloatField field) {
         return getByIndex(getAbstractTaskIndex(abstractTaskName), abstractTaskIds, getAll(field));
     }
@@ -200,6 +183,11 @@ public class NextflowTraceStorage {
     public Stream<Integer> getForNode(NodeWithAlloc node, IntegerField field) {
         return getByIndex(getNodeIndex(node), nodeIds, getAll(field));
     }
+
+    public Stream<Integer> getForIds(Stream<Integer> ids, IntegerField field) {
+        return ids.map(i -> getAll(field).get(i));
+    }
+
     public Stream<Integer> getForAbstractTask(String abstractTaskName, IntegerField field) {
         return getByIndex(getAbstractTaskIndex(abstractTaskName), abstractTaskIds, getAll(field));
     }
@@ -207,9 +195,46 @@ public class NextflowTraceStorage {
     public Stream<Long> getForNode(NodeWithAlloc node, LongField field) {
         return getByIndex(getNodeIndex(node), nodeIds, getAll(field));
     }
+
+    public Stream<Long> getForIds(Stream<Integer> ids, LongField field) {
+        return ids.map(i -> getAll(field).get(i));
+    }
+
     public Stream<Long> getForAbstractTask(String abstractTaskName, LongField field) {
         return getByIndex(getAbstractTaskIndex(abstractTaskName), abstractTaskIds, getAll(field));
     }
 
+    static final String[] integerFields = {"syscr", "syscw", "vol_ctxt", "inv_ctxt"};
+    static final String[] percentageFields = {"%cpu", "%mem"};
+    static final String[] memoryFields = {
+            "rss", "vmem", "peak_rss", "peak_vmem", "rchar", "wchar", "read_bytes", "write_bytes"
+    };
+
+    public String asString(int id) {
+        if (id < 0 || id >= taskIds.size()) {
+            return null;
+        }
+        return "{\"id\": " + id
+                + ", \"taskId\": " + taskIds.get(id)
+                + ", \"node\": " + nodes.get(nodeIds.get(id)).getName()
+                + ", \"task\": " + abstractTaskNames.get(abstractTaskIds.get(id))
+                + ", \"cpus\": " + cpusValues.get(id)
+                + ", \"%cpu\": " + cpuPercentageValues.get(id)
+                + ", \"memory\": " + memoryValues.get(id)
+                + ", \"syscr\": " + syscrValues.get(id)
+                + ", \"syscw\": " + syscwValues.get(id)
+                + ", \"vol_ctxt\": " + volCtxtValues.get(id)
+                + ", \"inv_ctxt\": " + invCtxtValues.get(id)
+                + ", \"rss\": " + rssValues.get(id)
+                + ", \"vmem\": " + vmemValues.get(id)
+                + ", \"peak_rss\": " + peakRssValues.get(id)
+                + ", \"peak_vmem\": " + peakVmemValues.get(id)
+                + ", \"rchar\": " + rcharValues.get(id)
+                + ", \"wchar\": " + wcharValues.get(id)
+                + ", \"read_bytes\": " + readBytesValues.get(id)
+                + ", \"write_bytes\": " + writeBytesValues.get(id)
+                + ", \"realtime\": " + realtimeValues.get(id)
+                + "}";
+    }
 
 }

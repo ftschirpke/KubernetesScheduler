@@ -30,7 +30,7 @@ public class NodeFirstOnlineTaremaScheduler extends TaremaScheduler {
     private final NodeFirstLabeller nodeLabeller = new NodeFirstLabeller();
     private final TaskSecondLabeller taskLabeller = new TaskSecondLabeller();
 
-    private final List<NodeWithAlloc> nodesWithNewData = new ArrayList<>();
+    private final Map<NodeWithAlloc, List<Integer>> nodesWithNewData = new HashMap<>();
     private long lastNodeLabelsRecalculation = 0;
 
     public NodeFirstOnlineTaremaScheduler(String execution,
@@ -73,10 +73,11 @@ public class NodeFirstOnlineTaremaScheduler extends TaremaScheduler {
         if (allNodesAlreadyLabelled || allNodesHaveData) {
             long finishedTasksOnNode = traces.getTaskIdsForNode(node).count();
             if (finishedTasksOnNode >= MIN_TASKS_FOR_NODE_LABELLING) {
-                nodesWithNewData.add(node);
+                nodesWithNewData.putIfAbsent(node, new ArrayList<>());
+                nodesWithNewData.get(node).add(task.getId());
             }
             if (System.currentTimeMillis() - lastNodeLabelsRecalculation > TEN_SECONDS) {
-                recalculateNodeLabels(nodesWithNewData.stream());
+                recalculateNodeLabels(nodesWithNewData);
                 nodesWithNewData.clear();
             }
         }
@@ -98,7 +99,7 @@ public class NodeFirstOnlineTaremaScheduler extends TaremaScheduler {
         log.info("Online Tarema Scheduler: New task labels are:\n{}", taskLabeller.getLabels());
     }
 
-    public void recalculateNodeLabels(Stream<NodeWithAlloc> nodesWithNewData) {
+    public void recalculateNodeLabels(Map<NodeWithAlloc, List<Integer>> nodesWithNewData) {
         long startTime = System.currentTimeMillis();
         boolean changed = nodeLabeller.recalculateLabels(traces, nodesWithNewData);
         long endTime = System.currentTimeMillis();

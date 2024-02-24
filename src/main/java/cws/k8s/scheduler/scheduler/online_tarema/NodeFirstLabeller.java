@@ -1,13 +1,18 @@
 package cws.k8s.scheduler.scheduler.online_tarema;
 
 import cws.k8s.scheduler.model.NodeWithAlloc;
+import cws.k8s.scheduler.scheduler.trace.FloatField;
+import cws.k8s.scheduler.scheduler.trace.LongField;
 import cws.k8s.scheduler.scheduler.trace.NextflowTraceStorage;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 
 import java.io.*;
+import java.text.SimpleDateFormat;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Stream;
 
 @Slf4j
@@ -17,6 +22,12 @@ public class NodeFirstLabeller {
     @Getter
     private final Map<NodeWithAlloc, Labels> labels = new HashMap<>();
     private final Map<NodeWithAlloc, NodeSpeedEstimation> estimations = new HashMap<>();
+    private final String modelDirectory; // directory for the python scripts to store the models
+
+    public NodeFirstLabeller() {
+        SimpleDateFormat formatter = new SimpleDateFormat("yyyy-MM-dd-HH-mm-ss");
+        this.modelDirectory = "external/node-first-labeller/" + formatter.format(System.currentTimeMillis());
+    }
 
     public record NodeLabelState(Labels maxLabels, Map<NodeWithAlloc, Labels> labels, GroupWeights groupWeights) {
     }
@@ -31,40 +42,55 @@ public class NodeFirstLabeller {
         return new NodeLabelState(maxLabels, labels, groupWeights);
     }
 
-    private void runBayesForNode(NextflowTraceStorage traces, NodeWithAlloc node) {
+    private void runBayesForNode(NextflowTraceStorage traces, NodeWithAlloc node, List<Integer> ids) {
         log.info("Online Tarema Scheduler: Running bayes.py for node {}", node.getName());
         Process bayesProcess;
-        try {
-            bayesProcess = new ProcessBuilder("external/venv/bin/python3", "external/bayes.py").start();
-        } catch (IOException e) {
-            log.error("Online Tarema Scheduler: Failed to start bayes.py process", e);
-            return;
-        }
-        OutputStream in = bayesProcess.getOutputStream();
-        PrintWriter writer = new PrintWriter(in);
-
-        writeValues(writer, "cpus", traces.getForNode(node, NextflowTraceStorage.FloatField.CPUS));
-        writeValues(writer, "%cpu", traces.getForNode(node, NextflowTraceStorage.FloatField.CPU_PERCENTAGE));
-        writeValues(writer, "vmem", traces.getForNode(node, NextflowTraceStorage.LongField.VIRTUAL_MEMORY));
-        writeValues(writer, "rss", traces.getForNode(node, NextflowTraceStorage.LongField.RESIDENT_SET_SIZE));
-        writeValues(writer, "rchar", traces.getForNode(node, NextflowTraceStorage.LongField.CHARACTERS_READ));
-        writeValues(writer, "wchar", traces.getForNode(node, NextflowTraceStorage.LongField.CHARACTERS_WRITTEN));
-        writeValues(writer, "realtime", traces.getForNode(node, NextflowTraceStorage.LongField.REALTIME));
-
-        writer.flush();
-        writer.close();
         int exitCode;
-        try {
-            exitCode = bayesProcess.waitFor();
-            log.info("Online Tarema Scheduler: bayes.py exited with code {}", exitCode);
-        } catch (InterruptedException e) {
-            log.error("Online Tarema Scheduler: Failed to wait for bayes.py to exit", e);
-            return;
+        synchronized (modelDirectory) { // ensure that only one process is writing to the same model directory
+            try {
+                String nodeModelDirectory = modelDirectory + "/" + node.getName();
+                bayesProcess = new ProcessBuilder(
+                        "external/venv/bin/python3", "external/node-first-bayes.py", nodeModelDirectory).start();
+            } catch (IOException e) {
+                log.error("Online Tarema Scheduler: Failed to start bayes.py process", e);
+                return;
+            }
+            log.info("DEBUG 4");
+            OutputStream in = bayesProcess.getOutputStream();
+            PrintWriter writer = new PrintWriter(in);
+
+            writeValues(writer, "cpus", traces.getForIds(ids.stream(), FloatField.CPUS));
+            writeValues(writer, "%cpu", traces.getForIds(ids.stream(), FloatField.CPU_PERCENTAGE));
+            writeValues(writer, "vmem", traces.getForIds(ids.stream(), LongField.VIRTUAL_MEMORY));
+            writeValues(writer, "rss", traces.getForIds(ids.stream(), LongField.RESIDENT_SET_SIZE));
+            writeValues(writer, "rchar", traces.getForIds(ids.stream(), LongField.CHARACTERS_READ));
+            writeValues(writer, "wchar", traces.getForIds(ids.stream(), LongField.CHARACTERS_WRITTEN));
+            writeValues(writer, "realtime", traces.getForIds(ids.stream(), LongField.REALTIME));
+
+            writer.flush();
+            writer.close();
+            log.info("DEBUG 5");
+            try {
+                boolean finished = bayesProcess.waitFor(5, TimeUnit.SECONDS);
+                if (!finished) {
+                    log.error("Online Tarema Scheduler: bayes.py timed out");
+                    bayesProcess.destroy();
+                    return;
+                }
+                exitCode = bayesProcess.exitValue();
+                log.info("DEBUG 6");
+                log.info("Online Tarema Scheduler: bayes.py exited with code {}", exitCode);
+            } catch (InterruptedException e) {
+                log.error("Online Tarema Scheduler: Failed to wait for bayes.py to exit", e);
+                return;
+            }
         }
+        log.info("DEBUG 7");
 
         String line;
         if (exitCode != 0) {
             BufferedReader stderrReader = new BufferedReader(new InputStreamReader(bayesProcess.getErrorStream()));
+            log.info("DEBUG 8");
             try {
                 while ((line = stderrReader.readLine()) != null) {
                     log.error("Online Tarema Scheduler: bayes.py stderr: {}", line);
@@ -74,13 +100,16 @@ public class NodeFirstLabeller {
             }
             return;
         }
+        log.info("DEBUG 9");
 
         MeanStdRecord cpu = null;
         MeanStdRecord mem = null;
         MeanStdRecord read = null;
         MeanStdRecord write = null;
         BufferedReader stdoutReader = new BufferedReader(new InputStreamReader(bayesProcess.getInputStream()));
+        log.info("DEBUG 10");
         try {
+            log.info("DEBUG 11");
             while ((line = stdoutReader.readLine()) != null) {
                 if (line.isEmpty()) {
                     continue;
@@ -99,22 +128,30 @@ public class NodeFirstLabeller {
                     log.error("Online Tarema Scheduler: bayes.py UNEXPECTED: {}", line);
                 }
             }
+            log.info("DEBUG 12");
             if (cpu == null || mem == null || read == null || write == null) {
                 log.error("Online Tarema Scheduler: could not find all estimations in bayes.py output");
                 return;
             }
+            log.info("DEBUG 13");
             estimations.put(node, new NodeSpeedEstimation(cpu, mem, read, write));
+            log.info("DEBUG 14");
         } catch (IOException e) {
             log.error("Online Tarema Scheduler: Failed to read bayes.py stdout", e);
         }
+        log.info("DEBUG 15");
     }
 
-    public boolean recalculateLabels(NextflowTraceStorage traces, Stream<NodeWithAlloc> nodesWithNewTraces) {
+    public boolean recalculateLabels(NextflowTraceStorage traces, Map<NodeWithAlloc, List<Integer>> nodesWithNewTraces) {
         if (traces.empty()) {
             log.info("No traces to calculate node labels from");
             return false;
         }
-        nodesWithNewTraces.forEach(node -> runBayesForNode(traces, node));
+        for (Map.Entry<NodeWithAlloc, List<Integer>> entry : nodesWithNewTraces.entrySet()) {
+            NodeWithAlloc node = entry.getKey();
+            List<Integer> ids = entry.getValue();
+            runBayesForNode(traces, node, ids);
+        }
         return kmeansClustering();
     }
 
@@ -196,13 +233,13 @@ public class NodeFirstLabeller {
 
                 Labels newLabels = new Labels(cpu, mem, read, write);
                 if (rowName.equals("maxLabels")) {
-                    if (!maxLabels.equals(newLabels)) {
+                    if (!newLabels.equals(maxLabels)) {
                         newMaxLabels = newLabels;
                     }
                 } else if (nodesWritten.containsKey(rowName)) {
                     NodeWithAlloc node = nodesWritten.get(rowName);
                     Labels nodeLabels = labels.get(node);
-                    if (!nodeLabels.equals(newLabels)) {
+                    if (!newLabels.equals(nodeLabels)) {
                         newNodeLabels.put(node, newLabels);
                     }
                 } else {

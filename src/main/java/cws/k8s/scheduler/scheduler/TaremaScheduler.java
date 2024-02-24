@@ -93,7 +93,9 @@ public abstract class TaremaScheduler extends Scheduler {
                 }
             } else { // taskLabels != null
                 // prioritize nodes with the least label difference (Tarema approach)
+                // and most available resources as a tiebreaker
                 Integer lowestLabelDifference = null;
+                Double highestAvailabilityScore = null;
                 for (Map.Entry<NodeWithAlloc, Requirements> e : availableByNode.entrySet()) {
                     NodeWithAlloc node = e.getKey();
                     Requirements requirements = e.getValue();
@@ -106,11 +108,15 @@ public abstract class TaremaScheduler extends Scheduler {
                         int labelDifference;
                         if (nodeLabels == null) {
                             labelDifference = 0; // prioritize nodes with no labels to get them labeled
+                            // TODO: consider changing this
                         } else {
                             labelDifference = taskLabels.absoluteDifference(nodeLabels);
                         }
-                        if (lowestLabelDifference == null || labelDifference < lowestLabelDifference) {
+                        final double score = highestResourceAvailabilityScore(task, node, requirements);
+                        if (lowestLabelDifference == null || labelDifference < lowestLabelDifference
+                                || (labelDifference == lowestLabelDifference && score > highestAvailabilityScore)) {
                             lowestLabelDifference = labelDifference;
+                            highestAvailabilityScore = score;
                             bestNode = node;
                         }
                     }

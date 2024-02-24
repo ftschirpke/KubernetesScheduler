@@ -40,7 +40,9 @@ public class TaremaApproach implements Approach {
     public void onTaskTermination(NextflowTraceRecord trace, TaskConfig config, NodeWithAlloc node) {
         traceStorage.saveTrace(trace, nextTaskId, config, node);
         nextTaskId++;
+    }
 
+    public void recalculate() {
         taskSecondLabeller.recalculateLabels(traceStorage, fixedNodeLabels.groupWeights());
     }
 }

@@ -23,7 +23,7 @@ public class LotaruTraces {
     }
 
     static NodeWithAlloc[] nodes = new NodeWithAlloc[]{
-            new NodeWithAlloc("local", requirementsHelper(8, 16)),
+            new NodeWithAlloc("local", requirementsHelper(8, 16)), // TODO: should "local" be included?
             new NodeWithAlloc("a1", requirementsHelper(2 * 4, 32)),
             new NodeWithAlloc("a2", requirementsHelper(2 * 4, 32)),
             new NodeWithAlloc("n1", requirementsHelper(8, 16)),
@@ -31,7 +31,7 @@ public class LotaruTraces {
             new NodeWithAlloc("c2", requirementsHelper(8, 32))
     };
     public static final Map<String, NodeWithAlloc> machineNames = Map.of(
-            "local", nodes[0],
+            "local", nodes[0], // TODO: should "local" be included?
             "asok01", nodes[1],
             "asok02", nodes[2],
             "n1", nodes[3],
@@ -43,7 +43,7 @@ public class LotaruTraces {
 
     public static Map<NodeWithAlloc, NodeFirstLabeller.NodeSpeedEstimation> lotaruBenchmarkResults = new HashMap<>(
             Map.of(
-                    nodes[0], new NodeFirstLabeller.NodeSpeedEstimation(458, 18700, 414, 415),
+                    nodes[0], new NodeFirstLabeller.NodeSpeedEstimation(458, 18700, 414, 415), // TODO: should "local" be included?
                     nodes[1], new NodeFirstLabeller.NodeSpeedEstimation(223, 11000, 306, 301),
                     nodes[2], new NodeFirstLabeller.NodeSpeedEstimation(223, 11000, 341, 336),
                     nodes[3], new NodeFirstLabeller.NodeSpeedEstimation(369, 13400, 481, 483),
