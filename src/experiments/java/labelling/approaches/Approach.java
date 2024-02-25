@@ -5,6 +5,7 @@ import cws.k8s.scheduler.model.TaskConfig;
 import cws.k8s.scheduler.scheduler.online_tarema.Labels;
 import cws.k8s.scheduler.scheduler.trace.NextflowTraceRecord;
 
+import java.io.IOException;
 import java.util.Map;
 
 public interface Approach {

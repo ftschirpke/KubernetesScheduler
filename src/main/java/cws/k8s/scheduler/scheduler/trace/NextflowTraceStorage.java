@@ -216,8 +216,8 @@ public class NextflowTraceStorage {
         }
         return "{\"id\": " + id
                 + ", \"taskId\": " + taskIds.get(id)
-                + ", \"node\": " + nodes.get(nodeIds.get(id)).getName()
-                + ", \"task\": " + abstractTaskNames.get(abstractTaskIds.get(id))
+                + ", \"node\": \"" + nodes.get(nodeIds.get(id)).getName() + "\""
+                + ", \"task\": \"" + abstractTaskNames.get(abstractTaskIds.get(id)) + "\""
                 + ", \"cpus\": " + cpusValues.get(id)
                 + ", \"%cpu\": " + cpuPercentageValues.get(id)
                 + ", \"memory\": " + memoryValues.get(id)

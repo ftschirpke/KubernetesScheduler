@@ -16,6 +16,7 @@ import cws.k8s.scheduler.scheduler.trace.NextflowTraceStorage;
 import cws.k8s.scheduler.util.NodeTaskAlignment;
 import lombok.extern.slf4j.Slf4j;
 
+import java.io.IOException;
 import java.math.BigDecimal;
 import java.util.*;
 import java.util.stream.Stream;

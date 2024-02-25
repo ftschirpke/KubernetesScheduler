@@ -9,6 +9,7 @@ import cws.k8s.scheduler.scheduler.online_tarema.TaskSecondLabeller;
 import cws.k8s.scheduler.scheduler.trace.NextflowTraceRecord;
 import cws.k8s.scheduler.scheduler.trace.NextflowTraceStorage;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -21,12 +22,11 @@ import java.util.stream.Stream;
  * The task labelling is naively copied from the original Tarema approach.
  */
 public class NaiveOnlineTaremaApproach implements Approach {
-    int nextTaskId = 0;
-    NextflowTraceStorage traceStorage = new NextflowTraceStorage();
-    NodeFirstLabeller nodeFirstLabeller = new NodeFirstLabeller();
-    TaskSecondLabeller taskSecondLabeller = new TaskSecondLabeller();
-    Map<NodeWithAlloc, List<Integer>> nodesWithNewData = new HashMap<>();
-
+    private int nextTaskId = 0;
+    private final NextflowTraceStorage traceStorage = new NextflowTraceStorage();
+    private final NodeFirstLabeller nodeFirstLabeller = new NodeFirstLabeller();
+    private final TaskSecondLabeller taskSecondLabeller = new TaskSecondLabeller();
+    private final Map<NodeWithAlloc, List<Integer>> nodesWithNewData = new HashMap<>();
 
     public void initialize() {
     }

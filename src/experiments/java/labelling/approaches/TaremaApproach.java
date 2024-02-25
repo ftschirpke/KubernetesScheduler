@@ -8,7 +8,9 @@ import cws.k8s.scheduler.scheduler.online_tarema.TaskSecondLabeller;
 import cws.k8s.scheduler.scheduler.trace.NextflowTraceRecord;
 import cws.k8s.scheduler.scheduler.trace.NextflowTraceStorage;
 import labelling.LotaruTraces;
+import lombok.extern.slf4j.Slf4j;
 
+import java.io.IOException;
 import java.util.Map;
 
 /*
@@ -16,21 +18,21 @@ import java.util.Map;
  * The Tarema approach retrieves node labels from benchmarks before the scheduling process starts.
  * At runtime, only the task labels are updated.
  */
+@Slf4j
 public class TaremaApproach implements Approach {
     int nextTaskId = 0;
-    NextflowTraceStorage traceStorage;
+    private final NextflowTraceStorage traceStorage = new NextflowTraceStorage();
 
-    NodeFirstLabeller.NodeLabelState fixedNodeLabels;
+    private NodeFirstLabeller.NodeLabelState fixedNodeLabels = null;
 
-    TaskSecondLabeller taskSecondLabeller;
-
-    public TaremaApproach() {
-        this.traceStorage = new NextflowTraceStorage();
-        this.taskSecondLabeller = new TaskSecondLabeller();
-    }
+    private final TaskSecondLabeller taskSecondLabeller = new TaskSecondLabeller();
 
     public void initialize() {
-        fixedNodeLabels = NodeFirstLabeller.labelOnce(LotaruTraces.lotaruBenchmarkResults);
+        try {
+            fixedNodeLabels = NodeFirstLabeller.labelOnce(LotaruTraces.lotaruBenchmarkResults);
+        } catch (IOException e) {
+            log.error("Failed to load benchmark results", e);
+        }
     }
 
     public Map<NodeWithAlloc, Labels> getNodeLabels() {

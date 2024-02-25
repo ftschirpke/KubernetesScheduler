@@ -46,7 +46,7 @@ public class LabelConvergenceExperiment {
             System.exit(1);
         }
 
-        boolean all = true;
+        boolean all = false;
 
         SimpleDateFormat formatter = new SimpleDateFormat("yyyy-MM-dd--HH-mm-ss");
         String time = formatter.format(System.currentTimeMillis());

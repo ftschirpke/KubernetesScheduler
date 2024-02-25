@@ -1,8 +1,6 @@
 package cws.k8s.scheduler.scheduler.online_tarema;
 
 import cws.k8s.scheduler.model.NodeWithAlloc;
-import cws.k8s.scheduler.scheduler.trace.FloatField;
-import cws.k8s.scheduler.scheduler.trace.LongField;
 import cws.k8s.scheduler.scheduler.trace.NextflowTraceStorage;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
@@ -12,7 +10,6 @@ import java.text.SimpleDateFormat;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.TimeUnit;
 import java.util.stream.Stream;
 
 @Slf4j
@@ -24,15 +21,21 @@ public class NodeFirstLabeller {
     private final Map<NodeWithAlloc, NodeSpeedEstimation> estimations = new HashMap<>();
     private final String modelDirectory; // directory for the python scripts to store the models
 
+    private Process bayesProcess = null;
+    private BufferedReader stdoutReader = null;
+    private BufferedReader stderrReader = null;
+    private PrintWriter stdinWriter = null;
+
     public NodeFirstLabeller() {
         SimpleDateFormat formatter = new SimpleDateFormat("yyyy-MM-dd-HH-mm-ss");
-        this.modelDirectory = "external/node-first-labeller/" + formatter.format(System.currentTimeMillis());
+        modelDirectory = "external/node-first-labeller/" + formatter.format(System.currentTimeMillis());
+
     }
 
     public record NodeLabelState(Labels maxLabels, Map<NodeWithAlloc, Labels> labels, GroupWeights groupWeights) {
     }
 
-    public static NodeLabelState labelOnce(Map<NodeWithAlloc, NodeSpeedEstimation> estimations) {
+    public static NodeLabelState labelOnce(Map<NodeWithAlloc, NodeSpeedEstimation> estimations) throws IOException {
         NodeFirstLabeller labeller = new NodeFirstLabeller();
         labeller.estimations.putAll(estimations);
         labeller.kmeansClustering();
@@ -44,102 +47,71 @@ public class NodeFirstLabeller {
 
     private void runBayesForNode(NextflowTraceStorage traces, NodeWithAlloc node, List<Integer> ids) {
         log.info("Online Tarema Scheduler: Running bayes.py for node {}", node.getName());
-        Process bayesProcess;
-        int exitCode;
-        synchronized (modelDirectory) { // ensure that only one process is writing to the same model directory
+        if (bayesProcess == null) {
             try {
-                String nodeModelDirectory = modelDirectory + "/" + node.getName();
-                bayesProcess = new ProcessBuilder(
-                        "external/venv/bin/python3", "external/node-first-bayes.py", nodeModelDirectory).start();
+                bayesProcess = new ProcessBuilder("external/venv/bin/python3", "external/new-node-first-bayes.py").start();
             } catch (IOException e) {
                 log.error("Online Tarema Scheduler: Failed to start bayes.py process", e);
                 return;
             }
-            log.info("DEBUG 4");
-            OutputStream in = bayesProcess.getOutputStream();
-            PrintWriter writer = new PrintWriter(in);
+            stdoutReader = new BufferedReader(new InputStreamReader(bayesProcess.getInputStream()));
+            stderrReader = new BufferedReader(new InputStreamReader(bayesProcess.getErrorStream()));
+            stdinWriter = new PrintWriter(new OutputStreamWriter(bayesProcess.getOutputStream()), true);
+        }
+        synchronized (modelDirectory) { // ensure that only one process is writing to the same model directory
+            ids.forEach(id -> stdinWriter.println(traces.asString(id)));
 
-            writeValues(writer, "cpus", traces.getForIds(ids.stream(), FloatField.CPUS));
-            writeValues(writer, "%cpu", traces.getForIds(ids.stream(), FloatField.CPU_PERCENTAGE));
-            writeValues(writer, "vmem", traces.getForIds(ids.stream(), LongField.VIRTUAL_MEMORY));
-            writeValues(writer, "rss", traces.getForIds(ids.stream(), LongField.RESIDENT_SET_SIZE));
-            writeValues(writer, "rchar", traces.getForIds(ids.stream(), LongField.CHARACTERS_READ));
-            writeValues(writer, "wchar", traces.getForIds(ids.stream(), LongField.CHARACTERS_WRITTEN));
-            writeValues(writer, "realtime", traces.getForIds(ids.stream(), LongField.REALTIME));
+            String line;
 
-            writer.flush();
-            writer.close();
-            log.info("DEBUG 5");
+            MeanStdRecord cpu = null;
+            MeanStdRecord mem = null;
+            MeanStdRecord read = null;
+            MeanStdRecord write = null;
             try {
-                boolean finished = bayesProcess.waitFor(5, TimeUnit.SECONDS);
-                if (!finished) {
-                    log.error("Online Tarema Scheduler: bayes.py timed out");
-                    bayesProcess.destroy();
+                int skip = ids.size() - 1;
+                while (true) {
+                    line = stdoutReader.readLine();
+                    if (line == null) {
+                        log.error("Online Tarema Scheduler: bayes.py stdout closed unexpectedly");
+                        while ((line = stderrReader.readLine()) != null) {
+                            log.error("Online Tarema Scheduler: bayes.py stderr: {}", line);
+                        }
+                        return;
+                    }
+                    if (line.startsWith("DEBUG")) {
+                        log.info("Online Tarema Scheduler: bayes.py {}", line);
+                    } else if (skip > 0) {
+                        skip--;
+                    } else {
+                        break;
+                    }
+                }
+                String[] parts = line.split(";");
+                for (String part : parts) {
+                    if (part.isEmpty()) {
+                        continue;
+                    }
+                    if (part.startsWith("CPU")) {
+                        cpu = meanStdFromString(part);
+                    } else if (part.startsWith("MEM")) {
+                        mem = meanStdFromString(part);
+                    } else if (part.startsWith("SEQ_READ")) {
+                        read = meanStdFromString(part);
+                    } else if (part.startsWith("SEQ_WRITE")) {
+                        write = meanStdFromString(part);
+                    } else {
+                        log.error("Online Tarema Scheduler: bayes.py UNEXPECTED: {}", part);
+                    }
+                }
+                if (cpu == null || mem == null || read == null || write == null) {
+                    log.error("Online Tarema Scheduler: could not find all estimations in bayes.py output");
                     return;
                 }
-                exitCode = bayesProcess.exitValue();
-                log.info("DEBUG 6");
-                log.info("Online Tarema Scheduler: bayes.py exited with code {}", exitCode);
-            } catch (InterruptedException e) {
-                log.error("Online Tarema Scheduler: Failed to wait for bayes.py to exit", e);
-                return;
-            }
-        }
-        log.info("DEBUG 7");
-
-        String line;
-        if (exitCode != 0) {
-            BufferedReader stderrReader = new BufferedReader(new InputStreamReader(bayesProcess.getErrorStream()));
-            log.info("DEBUG 8");
-            try {
-                while ((line = stderrReader.readLine()) != null) {
-                    log.error("Online Tarema Scheduler: bayes.py stderr: {}", line);
-                }
+                estimations.put(node, new NodeSpeedEstimation(cpu, mem, read, write));
             } catch (IOException e) {
-                log.error("Online Tarema Scheduler: Failed to read bayes.py stderr", e);
+                log.error("Online Tarema Scheduler: Failed to read bayes.py stdout", e);
             }
-            return;
         }
-        log.info("DEBUG 9");
-
-        MeanStdRecord cpu = null;
-        MeanStdRecord mem = null;
-        MeanStdRecord read = null;
-        MeanStdRecord write = null;
-        BufferedReader stdoutReader = new BufferedReader(new InputStreamReader(bayesProcess.getInputStream()));
-        log.info("DEBUG 10");
-        try {
-            log.info("DEBUG 11");
-            while ((line = stdoutReader.readLine()) != null) {
-                if (line.isEmpty()) {
-                    continue;
-                }
-                if (line.startsWith("DEBUG")) {
-                    log.info("Online Tarema Scheduler: bayes.py {}", line);
-                } else if (line.startsWith("CPU")) {
-                    cpu = meanStdFromLine(line);
-                } else if (line.startsWith("MEM")) {
-                    mem = meanStdFromLine(line);
-                } else if (line.startsWith("SEQ_READ")) {
-                    read = meanStdFromLine(line);
-                } else if (line.startsWith("SEQ_WRITE")) {
-                    write = meanStdFromLine(line);
-                } else {
-                    log.error("Online Tarema Scheduler: bayes.py UNEXPECTED: {}", line);
-                }
-            }
-            log.info("DEBUG 12");
-            if (cpu == null || mem == null || read == null || write == null) {
-                log.error("Online Tarema Scheduler: could not find all estimations in bayes.py output");
-                return;
-            }
-            log.info("DEBUG 13");
-            estimations.put(node, new NodeSpeedEstimation(cpu, mem, read, write));
-            log.info("DEBUG 14");
-        } catch (IOException e) {
-            log.error("Online Tarema Scheduler: Failed to read bayes.py stdout", e);
-        }
-        log.info("DEBUG 15");
     }
 
     public boolean recalculateLabels(NextflowTraceStorage traces, Map<NodeWithAlloc, List<Integer>> nodesWithNewTraces) {
@@ -279,13 +251,13 @@ public class NodeFirstLabeller {
     private record MeanStdRecord(float mean, float std) {
     }
 
-    private MeanStdRecord meanStdFromLine(String line) throws NumberFormatException {
-        String[] parts = line.split(",");
+    private MeanStdRecord meanStdFromString(String s) throws NumberFormatException {
+        String[] parts = s.split(",");
         try {
             return new MeanStdRecord(-Float.parseFloat(parts[1]), Float.parseFloat(parts[2]));
             // HACK: negative mean to inverse the order (higher mean (slower node) -> lower label)
         } catch (NumberFormatException e) {
-            log.error("Online Tarema Scheduler: Failed to parse mean and std from line \"{}\"", line);
+            log.error("Online Tarema Scheduler: Failed to parse mean and std from line \"{}\"", s);
             return null;
         }
     }

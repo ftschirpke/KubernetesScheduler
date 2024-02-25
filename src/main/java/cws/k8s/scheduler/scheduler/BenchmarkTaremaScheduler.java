@@ -11,6 +11,7 @@ import cws.k8s.scheduler.scheduler.online_tarema.TaskSecondLabeller;
 import cws.k8s.scheduler.scheduler.trace.NextflowTraceStorage;
 import lombok.extern.slf4j.Slf4j;
 
+import java.io.IOException;
 import java.util.Map;
 
 @Slf4j
@@ -24,7 +25,7 @@ public class BenchmarkTaremaScheduler extends TaremaScheduler {
             String execution,
             KubernetesClient client,
             String namespace,
-            SchedulerConfig config) {
+            SchedulerConfig config) throws IOException {
         super(execution, client, namespace, config);
         nodeLabelState = NodeFirstLabeller.labelOnce(fixedNodeSpeedEstimations);
         assert nodeLabelState.maxLabels() != null;
