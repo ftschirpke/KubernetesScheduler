@@ -11,6 +11,7 @@ import cws.k8s.scheduler.scheduler.prioritize.Prioritize;
 import cws.k8s.scheduler.scheduler.prioritize.RankMinPrioritize;
 import cws.k8s.scheduler.util.NodeTaskAlignment;
 import lombok.extern.slf4j.Slf4j;
+import org.jetbrains.annotations.NotNull;
 
 import java.math.BigDecimal;
 import java.util.*;
@@ -31,8 +32,10 @@ public abstract class TaremaScheduler extends Scheduler {
         this.randomNodeAssign.registerScheduler(this);
     }
 
+    @NotNull
     abstract Map<NodeWithAlloc, Labels> getNodeLabels();
 
+    @NotNull
     abstract Map<String, Labels> getTaskLabels();
 
     @Override

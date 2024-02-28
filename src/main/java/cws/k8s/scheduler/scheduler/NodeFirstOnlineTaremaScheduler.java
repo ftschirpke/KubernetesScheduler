@@ -1,25 +1,22 @@
 package cws.k8s.scheduler.scheduler;
 
-import cws.k8s.scheduler.model.*;
-import cws.k8s.scheduler.model.tracing.TraceRecord;
-import cws.k8s.scheduler.scheduler.nodeassign.NodeAssign;
-import cws.k8s.scheduler.scheduler.nodeassign.RandomNodeAssign;
+import cws.k8s.scheduler.client.KubernetesClient;
+import cws.k8s.scheduler.model.NodeWithAlloc;
+import cws.k8s.scheduler.model.PodWithAge;
+import cws.k8s.scheduler.model.SchedulerConfig;
+import cws.k8s.scheduler.model.Task;
 import cws.k8s.scheduler.scheduler.online_tarema.GroupWeights;
 import cws.k8s.scheduler.scheduler.online_tarema.Labels;
 import cws.k8s.scheduler.scheduler.online_tarema.NodeFirstLabeller;
 import cws.k8s.scheduler.scheduler.online_tarema.TaskSecondLabeller;
-import cws.k8s.scheduler.scheduler.prioritize.MinInputPrioritize;
-import cws.k8s.scheduler.client.KubernetesClient;
-import cws.k8s.scheduler.scheduler.prioritize.Prioritize;
-import cws.k8s.scheduler.scheduler.prioritize.RankMinPrioritize;
 import cws.k8s.scheduler.scheduler.trace.NextflowTraceStorage;
-import cws.k8s.scheduler.util.NodeTaskAlignment;
 import lombok.extern.slf4j.Slf4j;
+import org.jetbrains.annotations.NotNull;
 
-import java.io.IOException;
-import java.math.BigDecimal;
-import java.util.*;
-import java.util.stream.Stream;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 @Slf4j
 public class NodeFirstOnlineTaremaScheduler extends TaremaScheduler {
@@ -42,11 +39,13 @@ public class NodeFirstOnlineTaremaScheduler extends TaremaScheduler {
     }
 
     @Override
+    @NotNull
     Map<NodeWithAlloc, Labels> getNodeLabels() {
         return nodeLabeller.getLabels();
     }
 
     @Override
+    @NotNull
     Map<String, Labels> getTaskLabels() {
         return taskLabeller.getLabels();
     }

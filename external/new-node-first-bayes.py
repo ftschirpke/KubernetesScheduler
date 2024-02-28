@@ -24,22 +24,22 @@ TEST_VALUES = {  # HACK: These are values are totally made up, just for testing 
 }
 
 
-def columns_for_type(type: str) -> list[str]:
-    if type == "cpu":
+def columns_for_resource(resource: str) -> list[str]:
+    if resource == "cpu":
         return CPU_COLUMNS
-    if type == "mem":
+    if resource == "mem":
         return MEM_COLUMNS
-    if type == "seq_read":
+    if resource == "seq_read":
         return SEQ_READ_COLUMNS
-    if type == "seq_write":
+    if resource == "seq_write":
         return SEQ_WRITE_COLUMNS
-    raise ValueError(f"Unknown type {type}")
+    raise ValueError(f"Unknown resource {resource}")
 
 
 class Model:
-    def __init__(self, dir: Path, type: str):
-        self.type = type
-        self.columns = columns_for_type(type)
+    def __init__(self, dir: Path, resource: str):
+        self.resource = resource
+        self.columns = columns_for_resource(resource)
 
         self.model = BayesianLinearRegression()
         self.metric = MAE()
@@ -50,15 +50,18 @@ class Model:
         x = {col: data_point[col] for col in self.columns}
         y = data_point[RUNTIME_COLUMN]
 
+        print(f"DEBUG ({self.resource}): x = {x}, y = {y}", flush=True)
+
         y_pred = self.model.predict_one(x)
         self.model.learn_one(x, y)
+        print(f"DEBUG ({self.resource}): {self.model._m = }", flush=True)
         self.metric.update(y, y_pred)
-        print(f"DEBUG ({self.type}): {self.metric}", flush=True)
+        print(f"DEBUG ({self.resource}): {self.metric}", flush=True)
         return self.predict_test()
 
     def predict_test(self) -> Gaussian:
         gaussian = self.model.predict_one(self.test_values, with_dist=True)
-        print(f"DEBUG ({self.type}): mu = {gaussian.mu}, sigma = {gaussian.sigma}", flush=True)
+        print(f"DEBUG ({self.resource}): mu = {gaussian.mu}, sigma = {gaussian.sigma}", flush=True)
         if math.isnan(gaussian.sigma):
             return gaussian.mu, -1
         return gaussian.mu, gaussian.sigma

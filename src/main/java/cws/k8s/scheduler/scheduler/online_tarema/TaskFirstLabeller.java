@@ -5,15 +5,15 @@ import cws.k8s.scheduler.scheduler.trace.LongField;
 import cws.k8s.scheduler.scheduler.trace.NextflowTraceStorage;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.math3.ml.clustering.CentroidCluster;
 
-import java.io.*;
-import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 import java.util.stream.Stream;
-
-import static cws.k8s.scheduler.scheduler.online_tarema.MyStreamUtils.*;
 
 @Getter
 @Slf4j
@@ -21,129 +21,90 @@ public class TaskFirstLabeller {
     private Labels maxLabels = null;
     private final Map<String, Labels> labels = new HashMap<>();
 
+    private final SilhouetteScore<LabelledPoint<String>> silhouetteScore = new SilhouetteScore<>();
+
     public boolean recalculateLabels(NextflowTraceStorage traces) {
-        if (traces.empty()) {
-            log.info("No traces to calculate task labels from");
-            return false;
-        }
-        log.info("Online Tarema Scheduler: Running kmeans.py");
-        Process kmeansProcess;
-        try {
-            kmeansProcess = new ProcessBuilder("external/venv/bin/python3", "external/kmeans.py").start();
-        } catch (IOException e) {
-            log.error("Online Tarema Scheduler: Failed to start kmeans.py process", e);
-            return false;
-        }
-        OutputStream in = kmeansProcess.getOutputStream();
-        PrintWriter writer = new PrintWriter(in);
+        List<LabelledPoint<String>> cpuPoints = traces.getAbstractTaskNames().stream().map(
+                taskName -> new LabelledPoint<>(taskName,
+                        floatAverage(traces.getForAbstractTask(taskName, FloatField.CPU_PERCENTAGE))
+                        // TODO: maybe add more fields e.g. cpus
+                )
+        ).toList();
+        List<LabelledPoint<String>> memPoints = traces.getAbstractTaskNames().stream().map(
+                taskName -> new LabelledPoint<>(taskName,
+                        longAverage(traces.getForAbstractTask(taskName, LongField.RESIDENT_SET_SIZE))
+                        // TODO: maybe add more fields e.g. vmem, peak_rss
+                )
+        ).toList();
+        List<LabelledPoint<String>> readPoints = traces.getAbstractTaskNames().stream().map(
+                taskName -> new LabelledPoint<>(taskName,
+                        longAverage(traces.getForAbstractTask(taskName, LongField.CHARACTERS_READ))
+                )
+        ).toList();
+        List<LabelledPoint<String>> writePoints = traces.getAbstractTaskNames().stream().map(
+                taskName -> new LabelledPoint<>(taskName,
+                        longAverage(traces.getForAbstractTask(taskName, LongField.CHARACTERS_WRITTEN))
+                )
+        ).toList();
 
-        List<String> tasksWritten = new ArrayList<>();
-        // writer.write("task,cpu1,cpu2,ram1,ram2,read,write\n");
-        for (String taskName : traces.getAbstractTaskNames()) {
-            writer.write(taskName);
-            writer.write(",");
-            // Stream<Float> cpuValues = traces.getForAbstractTask(taskName, NextflowTraceStorage.FloatField.CPU_PERCENTAGE);
-            // writer.write(String.valueOf(floatAvg(cpuValues)));
-            // writer.write(",");
-            Stream<Float> cpuPercValues = traces.getForAbstractTask(taskName, FloatField.CPU_PERCENTAGE);
-            writer.write(String.valueOf(floatAverage(cpuPercValues)));
-            writer.write(",");
-            Stream<Long> rssValues = traces.getForAbstractTask(taskName, LongField.RESIDENT_SET_SIZE);
-            writer.write(String.valueOf(longAverage(rssValues)));
-            writer.write(",");
-            // Stream<Long> vmemValues = traces.getForAbstractTask(taskName, NextflowTraceStorage.LongField.VIRTUAL_MEMORY);
-            // writer.write(String.valueOf(longAvg(vmemValues)));
-            // writer.write(",");
-            Stream<Long> rCharValues = traces.getForAbstractTask(taskName, LongField.CHARACTERS_READ);
-            writer.write(String.valueOf(longAverage(rCharValues)));
-            writer.write(",");
-            Stream<Long> wCharValues = traces.getForAbstractTask(taskName, LongField.CHARACTERS_WRITTEN);
-            writer.write(String.valueOf(longAverage(wCharValues)));
-            writer.write("\n");
+        Map<String, Integer> cpuLabels = labelsForPoints(cpuPoints);
+        Map<String, Integer> memLabels = labelsForPoints(memPoints);
+        Map<String, Integer> readLabels = labelsForPoints(readPoints);
+        Map<String, Integer> writeLabels = labelsForPoints(writePoints);
 
-            tasksWritten.add(taskName);
-        }
-        writer.flush();
-        writer.close();
+        int maxCpuLabel = cpuLabels.values().stream().max(Integer::compareTo).orElse(0);
+        int maxMemLabel = memLabels.values().stream().max(Integer::compareTo).orElse(0);
+        int maxReadLabel = readLabels.values().stream().max(Integer::compareTo).orElse(0);
+        int maxWriteLabel = writeLabels.values().stream().max(Integer::compareTo).orElse(0);
+        Labels newMaxLabels = new Labels(maxCpuLabel, maxMemLabel, maxReadLabel, maxWriteLabel);
 
-        int exitCode;
-        try {
-            exitCode = kmeansProcess.waitFor();
-            log.info("Online Tarema Scheduler: kmeans.py exited with code {}", exitCode);
-        } catch (InterruptedException e) {
-            log.error("Online Tarema Scheduler: Failed to wait for kmeans.py to exit", e);
-            return false;
-        }
+        Map<String, Labels> newLabels = traces.getAbstractTaskNames().stream()
+                .map(taskName -> Map.entry(taskName, new Labels(
+                        cpuLabels.get(taskName),
+                        memLabels.get(taskName),
+                        readLabels.get(taskName),
+                        writeLabels.get(taskName)
+                ))).collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
 
-        String line;
-        if (exitCode != 0) {
-            BufferedReader stderrReader = new BufferedReader(new InputStreamReader(kmeansProcess.getErrorStream()));
-            try {
-                while ((line = stderrReader.readLine()) != null) {
-                    log.error("Online Tarema Scheduler: kmeans.py stderr: {}", line);
-                }
-            } catch (IOException e) {
-                log.error("Online Tarema Scheduler: Failed to read kmeans.py stderr", e);
+        boolean changed;
+        synchronized (labels) {
+            changed = !newLabels.equals(labels);
+            if (!newLabels.keySet().containsAll(labels.keySet())) {
+                log.error("Online Tarema Scheduler: New labels do not contain all nodes; lost nodes");
+                labels.clear();
             }
-            return false;
+            labels.putAll(newLabels);
+            maxLabels = newMaxLabels;
+        }
+        log.info("DEBUG: recalculateLabelsFromSpeedEstimations 4");
+        return changed;
+    }
+
+    private Map<String, Integer> labelsForPoints(List<LabelledPoint<String>> points) {
+        List<CentroidCluster<LabelledPoint<String>>> clusters = silhouetteScore.findBestKmeansClustering(points);
+        if (clusters.size() == 1) {
+            return points.stream()
+                    .map(labelledPoint -> Map.entry(labelledPoint.getLabel(), 0))
+                    .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
         }
 
-        boolean labelsChanged = false;
-        BufferedReader stdoutReader = new BufferedReader(new InputStreamReader(kmeansProcess.getInputStream()));
-        try {
-            Labels newMaxLabels = null;
-            Map<String, Labels> newTaskLabels = new HashMap<>();
-            while ((line = stdoutReader.readLine()) != null) {
-                if (line.isEmpty()) {
-                    continue;
-                }
-                if (line.startsWith("DEBUG")) {
-                    log.info("Online Tarema Scheduler: kmeans.py {}", line);
-                    continue;
-                }
-                String[] parts = line.split(",");
-                if (parts.length != 5) {
-                    log.error("Online Tarema Scheduler: kmeans.py UNEXPECTED: {}", line);
-                    continue;
-                }
-                String rowName = parts[0];
-                int cpu, mem, read, write;
-                try {
-                    cpu = Integer.parseInt(parts[1]);
-                    mem = Integer.parseInt(parts[2]);
-                    read = Integer.parseInt(parts[3]);
-                    write = Integer.parseInt(parts[4]);
-                    log.info("Online Tarema Scheduler: kmeans.py: {} {} {} {} {}", rowName, cpu, mem, read, write);
-                } catch (NumberFormatException e) {
-                    log.error("Online Tarema Scheduler: kmeans.py UNEXPECTED: {}", line);
-                    continue;
-                }
-                Labels newLabels = new Labels(cpu, mem, read, write);
-                if (rowName.equals("maxLabels")) {
-                    if (!maxLabels.equals(newLabels)) {
-                        newMaxLabels = newLabels;
-                    }
-                } else if (tasksWritten.contains(rowName)) {
-                    Labels taskLabels = labels.get(rowName);
-                    if (!taskLabels.equals(newLabels)) {
-                        newTaskLabels.put(rowName, newLabels);
-                    }
-                } else {
-                    log.error("Online Tarema Scheduler: kmeans.py UNEXPECTED {}", rowName);
-                }
-            }
-            if (newMaxLabels != null) {
-                maxLabels = newMaxLabels;
-                labelsChanged = true;
-            }
-            if (!newTaskLabels.isEmpty()) {
-                labels.putAll(newTaskLabels);
-                labelsChanged = true;
-            }
-        } catch (IOException e) {
-            log.error("Online Tarema Scheduler: Failed to read kmeans.py stdout", e);
-        }
-        return labelsChanged;
+        // TODO: careful, this sorting approach only works for one-dimensional points
+        clusters.sort(Comparator.comparingDouble(cluster -> cluster.getCenter().getPoint()[0]));
+
+        return IntStream.range(0, clusters.size())
+                .boxed()
+                .flatMap(i -> clusters.get(i).getPoints().stream()
+                        .map(point -> Map.entry(point.getLabel(), i))
+                )
+                .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+    }
+
+    static double floatAverage(Stream<Float> stream) {
+        return stream.mapToDouble(Float::doubleValue).average().orElseThrow();
+    }
+
+    static double longAverage(Stream<Long> stream) {
+        return stream.mapToLong(Long::longValue).average().orElseThrow();
     }
 
 }

@@ -10,6 +10,7 @@ import cws.k8s.scheduler.scheduler.online_tarema.NodeFirstLabeller;
 import cws.k8s.scheduler.scheduler.online_tarema.TaskSecondLabeller;
 import cws.k8s.scheduler.scheduler.trace.NextflowTraceStorage;
 import lombok.extern.slf4j.Slf4j;
+import org.jetbrains.annotations.NotNull;
 
 import java.io.IOException;
 import java.util.Map;
@@ -34,11 +35,13 @@ public class BenchmarkTaremaScheduler extends TaremaScheduler {
     }
 
     @Override
+    @NotNull
     Map<NodeWithAlloc, Labels> getNodeLabels() {
         return nodeLabelState.labels();
     }
 
     @Override
+    @NotNull
     Map<String, Labels> getTaskLabels() {
         return taskLabeller.getLabels();
     }

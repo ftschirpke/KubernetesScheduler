@@ -2,21 +2,19 @@ package labelling;
 
 import cws.k8s.scheduler.model.NodeWithAlloc;
 import cws.k8s.scheduler.model.TaskConfig;
-import cws.k8s.scheduler.scheduler.online_tarema.GroupWeights;
-import cws.k8s.scheduler.scheduler.online_tarema.Labels;
-import cws.k8s.scheduler.scheduler.online_tarema.NodeFirstLabeller;
-import cws.k8s.scheduler.scheduler.online_tarema.TaskSecondLabeller;
 import cws.k8s.scheduler.scheduler.trace.NextflowTraceRecord;
-import cws.k8s.scheduler.scheduler.trace.NextflowTraceStorage;
 import labelling.approaches.Approach;
 import labelling.approaches.NaiveOnlineTaremaApproach;
 import labelling.approaches.TaremaApproach;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.ArrayUtils;
 
-import java.io.*;
+import java.io.File;
+import java.io.FileWriter;
+import java.io.IOException;
 import java.text.SimpleDateFormat;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.stream.Stream;
 
 @Slf4j
@@ -56,14 +54,14 @@ public class LabelConvergenceExperiment {
                 for (String label : LotaruTraces.labels) {
                     LabelConvergenceExperiment experiment = new LabelConvergenceExperiment(time, experimentName, label);
                     experiment.initializeTraces(args[0]);
-                    experiment.initializeApproaches();
+                    experiment.setApproaches();
                     experiment.run();
                 }
             }
         } else {
             LabelConvergenceExperiment experiment = new LabelConvergenceExperiment(time, args[1], args[2]);
             experiment.initializeTraces(args[0]);
-            experiment.initializeApproaches();
+            experiment.setApproaches();
             experiment.run();
         }
     }
@@ -86,15 +84,17 @@ public class LabelConvergenceExperiment {
         System.out.println("Finished reading traces.");
     }
 
-    void initializeApproaches() {
+    void setApproaches() {
         approaches.add(new TaremaApproach());
         approaches.add(new NaiveOnlineTaremaApproach());
+        System.out.println("Finished adding approaches.");
     }
 
     void run() {
         for (Approach approach : approaches) {
             approach.initialize();
         }
+        log.info("Finished initializing approaches.");
         Stream<String[]> lines = lotaruTraces.allLinesByTask();
         lines.forEachOrdered(line -> {
             String machineName = lotaruTraces.getFromLine("Machine", line);
@@ -105,6 +105,7 @@ public class LabelConvergenceExperiment {
                 approach.onTaskTermination(trace, config, node);
             }
         });
+        log.info("Finished running approaches.");
 
         // TODO: move this into the body above if we want to analyze the convergence
         for (Approach approach : approaches) {

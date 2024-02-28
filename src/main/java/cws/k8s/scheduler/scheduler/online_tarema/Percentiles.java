@@ -4,8 +4,6 @@ import lombok.extern.slf4j.Slf4j;
 
 import java.util.List;
 
-import static cws.k8s.scheduler.scheduler.online_tarema.MyStreamUtils.*;
-
 @Slf4j
 class Percentiles {
     private final double minValue;
@@ -21,11 +19,17 @@ class Percentiles {
     }
 
     public static Percentiles fromFloatValues(List<Float> values, float[] weights) {
-        return new Percentiles(floatMin(values.stream()), floatMax(values.stream()), weights);
+        return new Percentiles(
+                values.stream().min(Float::compareTo).orElse(0f),
+                values.stream().max(Float::compareTo).orElse(0f),
+                weights);
     }
 
     public static Percentiles fromLongValues(List<Long> values, float[] weights) {
-        return new Percentiles(longMin(values.stream()), longMax(values.stream()), weights);
+        return new Percentiles(
+                values.stream().min(Long::compareTo).orElse(0L),
+                values.stream().max(Long::compareTo).orElse(0L),
+                weights);
     }
 
     /**

@@ -15,7 +15,7 @@ import java.util.stream.Stream;
 @Slf4j
 public class TaskSecondLabeller {
 
-    private final Map<String, Labels> labels = new HashMap<>();
+    private Map<String, Labels> labels = new HashMap<>();
 
     /**
      * Recalculates the labels for all tasks based on the historic traces and weights for each label group.
@@ -34,6 +34,7 @@ public class TaskSecondLabeller {
         List<Long> allWCharValues = traces.getAll(LongField.CHARACTERS_WRITTEN);
         Percentiles writePercentiles = Percentiles.fromLongValues(allWCharValues, groupWeights.write());
 
+        Map<String, Labels> newLabels = new HashMap<>();
         for (String abstractTaskName : traces.getAbstractTaskNames()) {
             Stream<Float> cpuValues = traces.getForAbstractTask(abstractTaskName, FloatField.CPU_PERCENTAGE);
             double avgCpuPercentage = cpuValues.mapToDouble(Float::doubleValue).average().orElseThrow();
@@ -51,7 +52,8 @@ public class TaskSecondLabeller {
             double avgWChar = wCharValues.mapToLong(Long::longValue).average().orElseThrow();
             int sequentialWriteLabel = writePercentiles.percentileNumber(avgWChar);
 
-            labels.put(abstractTaskName, new Labels(cpuLabel, memoryLabel, sequentialReadLabel, sequentialWriteLabel));
+            newLabels.put(abstractTaskName, new Labels(cpuLabel, memoryLabel, sequentialReadLabel, sequentialWriteLabel));
         }
+        labels = newLabels;
     }
 }

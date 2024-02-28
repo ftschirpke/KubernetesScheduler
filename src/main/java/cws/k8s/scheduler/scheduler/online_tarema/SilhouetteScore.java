@@ -1,51 +1,75 @@
 package cws.k8s.scheduler.scheduler.online_tarema;
 
-import org.apache.commons.math3.ml.clustering.Cluster;
+import org.apache.commons.math3.ml.clustering.*;
+import org.apache.commons.math3.ml.clustering.evaluation.ClusterEvaluator;
 
-public class SilhouetteScore extends ClusterEvaluator<DoublePoint> {
+import java.util.List;
+
+public class SilhouetteScore<T extends Clusterable> extends ClusterEvaluator<T> {
+    private double scoreSinglePoint(final List<? extends Cluster<T>> allClusters,
+                                    final Cluster<T> cluster,
+                                    final T point) {
+        List<T> clusterPoints = cluster.getPoints();
+        if (clusterPoints.size() == 1) {
+            return 0.0;
+        }
+        double avgIntraClusterDist = clusterPoints.stream()
+                .filter(otherPoint -> otherPoint != point)
+                .mapToDouble(otherPoint -> distance(point, otherPoint))
+                .average().orElse(0.0);
+        double nearestOtherClusterDistance = allClusters.stream()
+                .filter(otherCluster -> otherCluster != cluster)
+                .mapToDouble(otherCluster ->
+                        otherCluster.getPoints().stream()
+                                .mapToDouble(otherPoint -> distance(point, otherPoint))
+                                .sum()
+                )
+                .min().orElse(Double.MAX_VALUE);
+
+        double denominator = Math.max(nearestOtherClusterDistance, avgIntraClusterDist);
+        if (denominator == 0) {
+            return -1.0;
+        }
+        return (nearestOtherClusterDistance - avgIntraClusterDist) / denominator;
+    }
 
     @Override
-    public double score(List<? extends Cluster<DoublePoint>> clusters) {
-
-        EuclideanDistance euclideanDistance = new EuclideanDistance();
-
-        ArrayList<Double> smallest_mean_distance_list = new ArrayList<>();
-
-        for (int i = 0; i < clusters.size(); i++) {
-            for (int j = 0; j < clusters.get(i).getPoints().size(); j++) {
-
-                if (clusters.get(i).getPoints().size() == 1) {
-                    smallest_mean_distance_list.add(0.0);
-                    continue;
-                }
-
-                int finalI2 = i;
-                int finalJ1 = j;
-                double average_intra_distance = clusters.get(i).getPoints().stream()
-                        .map((s) -> euclideanDistance.compute(s.getPoint(), clusters.get(finalI2).getPoints().get(finalJ1).getPoint()))
-                        .reduce(0.0, (p1, p2) -> p1 + p2) / (clusters.get(i).getPoints().size() - 1);
-
-                ArrayList<Double> average_nearest_distanceList = new ArrayList<>();
-
-
-                int finalI = i;
-                int finalI1 = i;
-                int finalJ = j;
-                clusters.stream().filter((cc) -> cc != clusters.get(finalI)).forEach((c) -> {
-                    average_nearest_distanceList.add(
-                            (c.getPoints().stream().map((s) -> euclideanDistance.compute(s.getPoint(), clusters.get(finalI1).getPoints().get(finalJ).getPoint()))
-                                    .reduce(0.0, (p1, p2) -> p1 + p2)) / c.getPoints().size());
-                });
-
-                var min_average_nearest_distance = Collections.min(average_nearest_distanceList);
-
-                var smallest_mean_distance = (min_average_nearest_distance - average_intra_distance) / (Math.max(min_average_nearest_distance, average_intra_distance));
-                smallest_mean_distance_list.add(smallest_mean_distance);
-            }
-
-        }
-
-        return smallest_mean_distance_list.stream().mapToDouble(a -> a).average().orElse(10.0);
-
+    public double score(final List<? extends Cluster<T>> clusters) {
+        return clusters.stream().flatMapToDouble(cluster ->
+                cluster.getPoints().stream().mapToDouble(point -> scoreSinglePoint(clusters, cluster, point))
+        ).average().orElse(0);
     }
+
+    @Override
+    public boolean isBetterScore(final double score1, final double score2) {
+        return score1 > score2;
+    }
+
+    public List<CentroidCluster<T>> findBestKmeansClustering(List<T> points) {
+        if (points.isEmpty()) {
+            return List.of();
+        } else if (points.size() == 1) {
+            return List.of(new CentroidCluster<>(points.get(0)));
+        }
+        List<CentroidCluster<T>> bestClustering = null;
+        double bestScore = -1;
+        for (int k = 2; k < points.size(); k++) {
+            KMeansPlusPlusClusterer<T> clusterer = new KMeansPlusPlusClusterer<>(k, 1000);
+            List<CentroidCluster<T>> clusters = clusterer.cluster(points);
+            double score = score(clusters);
+            if (bestClustering == null | isBetterScore(score, bestScore)) {
+                bestClustering = clusters;
+                bestScore = score;
+            }
+        }
+        if (bestScore <= 0) { // TODO: think about if this should be < 0 instead
+            CentroidCluster<T> singleClusterForAll = new CentroidCluster<>(points.get(0));
+            for (T point : points) {
+                singleClusterForAll.addPoint(point);
+            }
+            return List.of(singleClusterForAll);
+        }
+        return bestClustering;
+    }
+
 }
