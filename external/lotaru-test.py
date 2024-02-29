@@ -1,5 +1,6 @@
-from pathlib import Path
 import json
+import sys
+from pathlib import Path
 
 import pandas as pd
 
@@ -36,21 +37,27 @@ def transform_data_dict(data: dict) -> dict:
 
 
 def main() -> None:
+    mode = None
+    if len(sys.argv) == 2:
+        mode = sys.argv[1]
+    elif len(sys.argv) > 2:
+        print("Usage: python3 all-data-test.py [mode]")
+        sys.exit(1)
+
     traces_dir: Path = Path(DEFAULT_PATH)
 
     experiment = EXPERIMENTS[0]
     label = LABELS[0]
 
-    machines = ["local"]
-
     data = []
 
-    for machine in machines:
-        node = MACHINES[machine]
+    tasks = []
+    for machine, node in MACHINES.items():
         node_id = NODES.index(node)
         path = traces_dir / node / f"results_{experiment}" / f"execution_report_{machine}.csv"
         df = pd.read_csv(path)
         df = df[df["Label"] == label]
+        tasks.extend(df["Task"].unique())
         node_entries = df.to_dict("records")
         node_entries = list(map(transform_data_dict, node_entries))
         for i, entry in enumerate(node_entries):
@@ -58,6 +65,11 @@ def main() -> None:
         data.extend(node_entries)
 
     data.sort(key=lambda x: x["id"])
+
+    if mode == "task-only":
+        data = filter(lambda x: x["task"] == tasks[0], data)
+    elif mode == "node-only":
+        data = filter(lambda x: x["node"] == NODES[0], data)
 
     for data_point in data:
         print(json.dumps(data_point))

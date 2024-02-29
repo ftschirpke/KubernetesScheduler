@@ -5,11 +5,23 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 
-from models import RUNTIME_COLUMN, OnlineModel, NaiveNodewiseBayes
+from models import RUNTIME_COLUMN, OnlineModel, NaiveNodewiseBayes, TaskwiseBayes
 
 
 def main() -> None:
-    model: OnlineModel = NaiveNodewiseBayes()
+    if len(sys.argv) != 2:
+        print("Usage: python3 all-data-test.py [model]")
+        sys.exit(1)
+
+    model_name = sys.argv[1]
+    model: OnlineModel = None
+    if model_name == "naive":
+        model = NaiveNodewiseBayes()
+    elif model_name == "taskwise":
+        model = TaskwiseBayes()
+    else:
+        print(f"Invalid model name {model_name}")
+        sys.exit(1)
 
     df = None
 
@@ -36,15 +48,25 @@ def main() -> None:
     #     list_vals = list(vals)
     #     sample = dict(zip(model.features(), list_vals))
 
-    nodes = df["node"].unique()
-    for node in nodes:
-        for i, feature in enumerate(model.features()):
-            plt.scatter(df[feature], df[RUNTIME_COLUMN], color="blue")
+    node_based = model_name == "naive"
 
-            test_vals = np.linspace(df[feature].min(), df[feature].max(), 100)
+    outer = "node" if node_based else "task"
+    inner = "task" if node_based else "node"
+
+    its = df[outer].unique()
+    for it in its:
+        outerdf = df[df[outer] == it]
+        for i, feature in enumerate(model.features()):
+            for inner_val in outerdf[inner].unique():
+                subdf = outerdf[outerdf[inner] == inner_val]
+                plt.scatter(subdf[feature], subdf[RUNTIME_COLUMN])
+
+            # plt.scatter(df[feature], df[RUNTIME_COLUMN], color="blue")
+
+            test_vals = np.linspace(outerdf[feature].min(), outerdf[feature].max(), 100)
 
             test_dict = avg_dict.copy()
-            test_dict["node"] = node
+            test_dict[outer] = it
             test_results = []
             for val in test_vals:
                 test_dict[feature] = val
@@ -52,6 +74,7 @@ def main() -> None:
 
             plt.plot(test_vals, test_results, color="red")
 
+            plt.title(f"{feature} vs {RUNTIME_COLUMN} for {outer} {it}")
             plt.xlabel(feature)
             plt.ylabel(RUNTIME_COLUMN)
             plt.show()

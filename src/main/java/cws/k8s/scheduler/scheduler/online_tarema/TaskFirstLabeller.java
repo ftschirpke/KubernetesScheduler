@@ -76,7 +76,6 @@ public class TaskFirstLabeller {
             labels.putAll(newLabels);
             maxLabels = newMaxLabels;
         }
-        log.info("DEBUG: recalculateLabelsFromSpeedEstimations 4");
         return changed;
     }
 
