@@ -15,7 +15,7 @@ class NaiveNodewiseBayes(OnlineModel):
     SEQ_READ_COLUMNS = ["rchar"]
     SEQ_WRITE_COLUMNS = ["wchar"]
     # ALL_COLUMNS = CPU_COLUMNS + MEM_COLUMNS + SEQ_READ_COLUMNS + SEQ_WRITE_COLUMNS
-    ALL_COLUMNS = ["rchar"]
+    ALL_COLUMNS = ["io"]
 
     def __init__(self):
         self.node_models: Dict = {}
@@ -70,7 +70,7 @@ class TaskwiseBayes(OnlineModel):
     SEQ_READ_COLUMNS = ["rchar"]
     SEQ_WRITE_COLUMNS = ["wchar"]
     # ALL_COLUMNS = CPU_COLUMNS + MEM_COLUMNS + SEQ_READ_COLUMNS + SEQ_WRITE_COLUMNS
-    ALL_COLUMNS = ["rchar"]
+    ALL_COLUMNS = ["%cpu"]
 
     def __init__(self):
         self.task_models: Dict = {}

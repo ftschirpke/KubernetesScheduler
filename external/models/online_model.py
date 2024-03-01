@@ -3,6 +3,7 @@ from typing import List
 
 
 RUNTIME_COLUMN = "realtime"
+# RUNTIME_COLUMN = "realtime_per_rchar"
 
 
 class OnlineModel(ABC):
