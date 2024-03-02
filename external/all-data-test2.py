@@ -120,6 +120,8 @@ def main() -> None:
         ln_ratio_sum += np.multiply(np.log(ratios), weights)
         harmonic_ratio_sum += 1 / np.multiply(ratios - 1, weights)
 
+    task_count = len(df[outer].unique())
+
     print("=== Borda count ===")
     counts = defaultdict(int)
     for ranking in task_rankings:
@@ -131,7 +133,7 @@ def main() -> None:
     print("=== Ratio sum ===")
     print(np.divide(ratio_sum, weights_summed))
     print("=== Ratio sum averaged ===")
-    ratio_avg = np.divide(ratio_sum, weights_summed) / node_count
+    ratio_avg = np.divide(ratio_sum, weights_summed) / task_count
     print(ratio_avg)
     res = - np.sum(ratio_avg, axis=1)
     print(res)
@@ -142,7 +144,7 @@ def main() -> None:
     print("=== Log Ratio sum ===")
     print(np.divide(ln_ratio_sum, weights_summed))
     print("=== Log Ratio sum averaged ===")
-    log_ratio_avg = np.divide(ln_ratio_sum, weights_summed) / node_count
+    log_ratio_avg = np.divide(ln_ratio_sum, weights_summed) / task_count
     print(log_ratio_avg)
     res = - np.sum(log_ratio_avg, axis=1)
     print(res)
@@ -151,7 +153,7 @@ def main() -> None:
     print(labels)
 
     # print("=== Harmonic Ratio sum ===")
-    # print(np.divide(harmonic_ratio_sum, node_count / weights_summed))
+    # print(np.divide(harmonic_ratio_sum, task_count / weights_summed))
 
     print(model.nodes)
     print("cpu", [2, 0, 0, 1, 2, 3])
