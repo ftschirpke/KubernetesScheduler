@@ -7,7 +7,12 @@ from sklearn.metrics import silhouette_score
 # apply kmeans-clustering to a single column of the input dataframe and return the labels
 def kmeans(df: pd.DataFrame, col: str) -> np.ndarray:
     values = df[col].values.reshape(-1, 1)
-    print(f"DEBUG: {col = }, {values.T = }")
+    return kmeans_on_values(values, debug=True)
+
+
+def kmeans_on_values(values: np.ndarray, debug=False) -> np.ndarray:
+    if debug:
+        print(f"DEBUG: {values.T = }")
     number_samples = values.shape[0]
     if number_samples <= 2:
         return np.zeros(number_samples, dtype=int)
@@ -19,15 +24,17 @@ def kmeans(df: pd.DataFrame, col: str) -> np.ndarray:
         kmeans = KMeans(n_clusters=k, n_init="auto", random_state=0)
         labels = kmeans.fit_predict(values)
         score = silhouette_score(values, labels)
-        print(f"DEBUG: {col = }, {k = }, {score = }, {labels = }")
+        if debug:
+            print(f"DEBUG: {k = }, {score = }, {labels = }")
         if score > best_score:
             best_score = score
             best_kmeans = kmeans
             best_labels = labels
-    print(f"DEBUG: {col = }, {best_score = }, {best_labels = }")
+    if debug:
+        print(f"DEBUG: {best_score = }, {best_labels = }")
 
     if best_labels is None:
-        raise ValueError(f"Could not find best labels for {col = }")
+        raise ValueError("Could not find best labels")
 
     # rename labels to be in order of increasing cluster center
     cluster_centers = best_kmeans.cluster_centers_.flatten()

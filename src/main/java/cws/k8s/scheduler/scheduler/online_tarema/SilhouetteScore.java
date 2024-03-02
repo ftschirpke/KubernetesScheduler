@@ -1,17 +1,32 @@
 package cws.k8s.scheduler.scheduler.online_tarema;
 
+import lombok.Getter;
 import org.apache.commons.math3.ml.clustering.*;
 import org.apache.commons.math3.ml.clustering.evaluation.ClusterEvaluator;
 
 import java.util.List;
 
 public class SilhouetteScore<T extends Clusterable> extends ClusterEvaluator<T> {
+
+    @Getter
+    private final double onePointClusterScore;
+
+    public SilhouetteScore() {
+        this(0.0);
+    }
+
+    public SilhouetteScore(double onePointClusterScore) {
+        super();
+        this.onePointClusterScore = onePointClusterScore;
+    }
+
+
     private double scoreSinglePoint(final List<? extends Cluster<T>> allClusters,
                                     final Cluster<T> cluster,
                                     final T point) {
         List<T> clusterPoints = cluster.getPoints();
         if (clusterPoints.size() == 1) {
-            return 0.0;
+            return onePointClusterScore;
         }
         double avgIntraClusterDist = clusterPoints.stream()
                 .filter(otherPoint -> otherPoint != point)
