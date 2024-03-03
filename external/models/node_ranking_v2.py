@@ -1,6 +1,6 @@
 from . import OnlineModel
 
-from collections import defaultdict
+from collections import defaultdict, deque
 from dataclasses import dataclass
 from typing import List, Dict
 
@@ -69,8 +69,8 @@ class NodeRankingV2:
         self.nodes: List[str] = []
         self.tasks: List[str] = []
 
-        self.lines: Dict[str, Dict[str, Line]] = defaultdict(lambda: defaultdict(None))
-        self.ranges: Dict[str, Dict[str, Range]] = defaultdict(lambda: defaultdict(None))
+        self.lines: Dict[str, Dict[str, Line]] = defaultdict(lambda: defaultdict(lambda: None))
+        self.ranges: Dict[str, Dict[str, Range]] = defaultdict(lambda: defaultdict(lambda: None))
         self.data_counts: Dict[str, Dict[str, int]] = defaultdict(lambda: defaultdict(int))
         self.ratio_matrices_by_task: Dict[str, np.array] = {}
         self.weight_matrices_by_task: Dict[str, np.array] = {}
@@ -124,15 +124,18 @@ class NodeRankingV2:
         node_count = len(self.nodes)
         weighted_ratios_summed = np.zeros((node_count, node_count), dtype=np.float64)
         weights_summed = np.zeros((node_count, node_count), dtype=np.int32)
-        for task, ratio_matrix in self.ratio_matrices_by_task:
+        for task, ratio_matrix in self.ratio_matrices_by_task.items():
             weight_matrix = self.weight_matrices_by_task[task]
             weighted_ratios_summed += np.multiply(ratio_matrix, weight_matrix)
             weights_summed += weight_matrix
-        return np.divide(weighted_ratios_summed, weights_summed)  # TODO: fix division by zero
+
+        assert np.all((weights_summed != 0) == self.comparison_possible)  # TODO: check assertion (important for division below)
+        adjusted_weights = weights_summed + (1 - self.comparison_possible)
+        return np.divide(weighted_ratios_summed, adjusted_weights)
 
     def _update_line(self, task: str, node: str) -> bool:
         task_data = self.data[self.data[TASK_COL] == task]
-        data = self.data[task_data[NODE_COL] == node]
+        data = task_data[task_data[NODE_COL] == node]
 
         # TODO: remove assertion and move if statement to the beginning
         assert self.data_counts[task][node] == len(data)
@@ -176,7 +179,7 @@ class NodeRankingV2:
                 continue
 
             intersect_range = node_range.intersection(other_node_range)
-            if intersect_range <= 0:
+            if intersect_range.width() <= 0:
                 continue
 
             ratio = node_line.relative_compare_on_interval(other_node_line, intersect_range)
@@ -190,8 +193,65 @@ class NodeRankingV2:
             self.comparison_possible[i][j] = True
             self.comparison_possible[j][i] = True
 
-    def transitive_closure(self, with_ratios: bool = True) -> np.array | (np.array, np.array):
-        ...  # TODO: implement floyd warshall
+    def _floyd_warshall(self) -> (np.array, np.array):
+        distances = np.array(self.comparison_possible, dtype=np.int32)
+        vertice_count = distances.shape[0]
+        distances[distances == 0] = vertice_count
+
+        # TODO: remove these assertions
+        assert vertice_count == len(self.nodes)
+        assert distances.shape == (vertice_count, vertice_count)
+
+        predecessors = np.zeros(distances.shape, dtype=np.int32)
+
+        for start, dest in np.argwhere(distances != 0):
+            predecessors[start][dest] = start
+
+        for max_node in range(vertice_count):
+            for start in range(vertice_count):
+                for dest in range(vertice_count):
+                    if distances[start][dest] > distances[start][max_node] + distances[max_node][dest]:
+                        distances[start][dest] = distances[start][max_node] + distances[max_node][dest]
+                        predecessors[start][dest] = predecessors[max_node][dest]
+
+        return distances, predecessors
+
+    def ready_for_ranking(self) -> bool:
+        distances, _ = self._floyd_warshall()
+        return np.all(distances < len(self.nodes))  # every node can reach (be compared to) any other node
+
+    def transitive_ratios(self) -> np.array:
+        accumulated_ratios = self.accumulated_ratios()
+        ratios_calculated = self.comparison_possible.copy()
+        for i, _ in enumerate(self.nodes):
+            ratios_calculated[i][i] = True
+
+        _, predecessors = self._floyd_warshall()
+
+        todo_stack = deque()
+        for start_node, dest_node in np.argwhere(ratios_calculated == False):
+            start = start_node
+            dest = dest_node
+            while not ratios_calculated[start][dest]:
+                todo_stack.append(dest)
+                dest = predecessors[start][dest]
+            ln_ratio = accumulated_ratios[start][dest]
+            while todo_stack:
+                middle = dest
+                dest = todo_stack.pop()
+                ln_ratio += accumulated_ratios[middle][dest]
+                accumulated_ratios[start][dest] = ln_ratio
+                accumulated_ratios[dest][start] = - ln_ratio
+                ratios_calculated[start][dest] = True
+                ratios_calculated[dest][start] = True
+
+        assert np.all(ratios_calculated)
+        return accumulated_ratios
+
+    def ranking(self) -> dict:
+        ratios = self.transitive_ratios()
+        ratio_sums = np.sum(ratios, axis=1) / len(self.nodes)
+        return dict(zip(self.nodes, ratio_sums))
 
 
 def _is_valid_data(node_data_count: int, node_line: Line, node_range: Range) -> bool:
