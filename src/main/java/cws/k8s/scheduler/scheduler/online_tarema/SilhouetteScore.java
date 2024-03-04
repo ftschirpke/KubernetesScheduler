@@ -1,18 +1,21 @@
 package cws.k8s.scheduler.scheduler.online_tarema;
 
-import lombok.Getter;
-import org.apache.commons.math3.ml.clustering.*;
+import org.apache.commons.math3.ml.clustering.CentroidCluster;
+import org.apache.commons.math3.ml.clustering.Cluster;
+import org.apache.commons.math3.ml.clustering.Clusterable;
+import org.apache.commons.math3.ml.clustering.KMeansPlusPlusClusterer;
 import org.apache.commons.math3.ml.clustering.evaluation.ClusterEvaluator;
 
 import java.util.List;
 
 public class SilhouetteScore<T extends Clusterable> extends ClusterEvaluator<T> {
 
-    @Getter
+    public static final double DEFAULT_ONE_POINT_CLUSTER_SCORE = 0.0;
+
     private final double onePointClusterScore;
 
     public SilhouetteScore() {
-        this(0.0);
+        this(DEFAULT_ONE_POINT_CLUSTER_SCORE);
     }
 
     public SilhouetteScore(double onePointClusterScore) {
@@ -77,7 +80,7 @@ public class SilhouetteScore<T extends Clusterable> extends ClusterEvaluator<T> 
                 bestScore = score;
             }
         }
-        if (bestScore <= 0) { // TODO: think about if this should be < 0 instead
+        if (bestScore <= 0) { // TODO: think about if this threshold is good
             CentroidCluster<T> singleClusterForAll = new CentroidCluster<>(points.get(0));
             for (T point : points) {
                 singleClusterForAll.addPoint(point);

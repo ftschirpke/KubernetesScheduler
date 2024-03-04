@@ -3,13 +3,15 @@ package labelling;
 import cws.k8s.scheduler.model.NodeWithAlloc;
 import cws.k8s.scheduler.model.Requirements;
 import cws.k8s.scheduler.model.TaskConfig;
-import cws.k8s.scheduler.scheduler.online_tarema.NodeFirstLabeller;
 import cws.k8s.scheduler.scheduler.trace.NextflowTraceRecord;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.ArrayUtils;
 import org.apache.commons.lang3.RandomUtils;
 
-import java.io.*;
+import java.io.BufferedReader;
+import java.io.File;
+import java.io.FileReader;
+import java.io.IOException;
 import java.math.BigDecimal;
 import java.util.*;
 import java.util.stream.Stream;
@@ -22,7 +24,7 @@ public class LotaruTraces {
         return new Requirements(cpu, mem);
     }
 
-    static NodeWithAlloc[] nodes = new NodeWithAlloc[]{
+    public static final NodeWithAlloc[] nodes = new NodeWithAlloc[]{
             new NodeWithAlloc("local", requirementsHelper(8, 16)), // TODO: should "local" be included?
             new NodeWithAlloc("a1", requirementsHelper(2 * 4, 32)),
             new NodeWithAlloc("a2", requirementsHelper(2 * 4, 32)),
@@ -41,14 +43,45 @@ public class LotaruTraces {
     static String[] experiments = new String[]{"atacseq", "bacass", "chipseq", "eager", "methylseq"};
     static String[] labels = new String[]{"test", "train-1", "train-2"};
 
-    public static Map<NodeWithAlloc, NodeFirstLabeller.NodeSpeedEstimation> lotaruBenchmarkResults = new HashMap<>(
+    // TODO: should "local" be included?
+    public static Map<NodeWithAlloc, Double> lotaruCpuBenchmarkResults = new HashMap<>(
             Map.of(
-                    nodes[0], new NodeFirstLabeller.NodeSpeedEstimation(458, 18700, 414, 415), // TODO: should "local" be included?
-                    nodes[1], new NodeFirstLabeller.NodeSpeedEstimation(223, 11000, 306, 301),
-                    nodes[2], new NodeFirstLabeller.NodeSpeedEstimation(223, 11000, 341, 336),
-                    nodes[3], new NodeFirstLabeller.NodeSpeedEstimation(369, 13400, 481, 483),
-                    nodes[4], new NodeFirstLabeller.NodeSpeedEstimation(468, 17000, 481, 483),
-                    nodes[5], new NodeFirstLabeller.NodeSpeedEstimation(523, 18900, 481, 483)
+                    nodes[0], 458.0, // TODO: should "local" be included?
+                    nodes[1], 223.0,
+                    nodes[2], 223.0,
+                    nodes[3], 369.0,
+                    nodes[4], 468.0,
+                    nodes[5], 523.0
+            )
+    );
+    public static Map<NodeWithAlloc, Double> lotaruMemoryBenchmarkResults = new HashMap<>(
+            Map.of(
+                    nodes[0], 18700.0, // TODO: should "local" be included?
+                    nodes[1], 11000.0,
+                    nodes[2], 11000.0,
+                    nodes[3], 13400.0,
+                    nodes[4], 17000.0,
+                    nodes[5], 18900.0
+            )
+    );
+    public static Map<NodeWithAlloc, Double> lotaruReadBenchmarkResults = new HashMap<>(
+            Map.of(
+                    nodes[0], 414.0, // TODO: should "local" be included?
+                    nodes[1], 306.0,
+                    nodes[2], 341.0,
+                    nodes[3], 481.0,
+                    nodes[4], 481.0,
+                    nodes[5], 481.0
+            )
+    );
+    public static Map<NodeWithAlloc, Double> lotaruWriteBenchmarkResults = new HashMap<>(
+            Map.of(
+                    nodes[0], 415.0, // TODO: should "local" be included?
+                    nodes[1], 301.0,
+                    nodes[2], 336.0,
+                    nodes[3], 483.0,
+                    nodes[4], 483.0,
+                    nodes[5], 483.0
             )
     );
 

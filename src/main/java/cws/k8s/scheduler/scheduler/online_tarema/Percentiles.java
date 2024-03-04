@@ -32,25 +32,32 @@ class Percentiles {
                 weights);
     }
 
+    public static Percentiles fromIntegerValues(List<Integer> values, float[] weights) {
+        return new Percentiles(
+                values.stream().min(Integer::compareTo).orElse(0),
+                values.stream().max(Integer::compareTo).orElse(0),
+                weights);
+    }
+
     /**
      * Returns the percentile number for a given value.
      *
      * @param value the value to calculate the percentile number for
-     * @return the percentile number (between 1 and segments inclusive)
+     * @return the percentile number (between 0 and segments-1 inclusive)
      */
     public int percentileNumber(double value) {
         float accumulatedWeight = 0;
         if (value < minValue) {
             log.warn("Unexpected value: {} is below the minimum value {}.", value, minValue);
-            return 1;
+            return 0;
         }
         for (int i = 0; i < segments; i++) {
             accumulatedWeight += weights[i];
             if (value <= minValue + range * accumulatedWeight) {
-                return i + 1;
+                return i;
             }
         }
         log.warn("Unexpected value: {} is above the maximum value {}.", value, minValue + range);
-        return segments;
+        return segments - 1;
     }
 }

@@ -2,16 +2,15 @@ package labelling.approaches;
 
 import cws.k8s.scheduler.model.NodeWithAlloc;
 import cws.k8s.scheduler.model.TaskConfig;
-import cws.k8s.scheduler.scheduler.online_tarema.Labels;
 import cws.k8s.scheduler.scheduler.trace.NextflowTraceRecord;
 
-import java.io.IOException;
-import java.util.Map;
-
 public interface Approach {
-    void initialize();
+
+    String getName();
+
     void onTaskTermination(NextflowTraceRecord trace, TaskConfig config, NodeWithAlloc node);
 
     void recalculate();
-    Map<NodeWithAlloc, Labels> getNodeLabels();
+    void printNodeLabels();
+    void printTaskLabels();
 }

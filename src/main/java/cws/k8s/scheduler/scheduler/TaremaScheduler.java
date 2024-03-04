@@ -5,13 +5,11 @@ import cws.k8s.scheduler.model.*;
 import cws.k8s.scheduler.model.tracing.TraceRecord;
 import cws.k8s.scheduler.scheduler.nodeassign.NodeAssign;
 import cws.k8s.scheduler.scheduler.nodeassign.RandomNodeAssign;
-import cws.k8s.scheduler.scheduler.online_tarema.Labels;
 import cws.k8s.scheduler.scheduler.prioritize.MinInputPrioritize;
 import cws.k8s.scheduler.scheduler.prioritize.Prioritize;
 import cws.k8s.scheduler.scheduler.prioritize.RankMinPrioritize;
 import cws.k8s.scheduler.util.NodeTaskAlignment;
 import lombok.extern.slf4j.Slf4j;
-import org.jetbrains.annotations.NotNull;
 
 import java.math.BigDecimal;
 import java.util.*;
@@ -32,11 +30,11 @@ public abstract class TaremaScheduler extends Scheduler {
         this.randomNodeAssign.registerScheduler(this);
     }
 
-    @NotNull
-    abstract Map<NodeWithAlloc, Labels> getNodeLabels();
+    abstract int nodeTaskLabelDifference(NodeWithAlloc node, String taskName);
 
-    @NotNull
-    abstract Map<String, Labels> getTaskLabels();
+    abstract boolean taskIsKnown(String taskName);
+
+    abstract boolean nodeLabelsReady();
 
     @Override
     public ScheduleObject getTaskNodeAlignment(final List<Task> unscheduledTasks, final Map<NodeWithAlloc, Requirements> availableByNode) {
@@ -49,7 +47,7 @@ public abstract class TaremaScheduler extends Scheduler {
         }
 
         List<NodeTaskAlignment> alignment;
-        if (getNodeLabels().isEmpty()) {
+        if (nodeLabelsReady()) {
             minInputPrioritize.sortTasks(unscheduledTasks);
             alignment = randomNodeAssign.getTaskNodeAlignment(unscheduledTasks, availableByNode);
         } else {
@@ -72,11 +70,10 @@ public abstract class TaremaScheduler extends Scheduler {
         for (final Task task : unscheduledTasks) {
             final PodWithAge pod = task.getPod();
             log.info("Pod: " + pod.getName() + " Requested Resources: " + pod.getRequest());
-            String absoluteTaskName = task.getConfig().getTask();
-            Labels taskLabels = getTaskLabels().get(absoluteTaskName);
+            String abstractTaskName = task.getConfig().getTask();
             int triedOnNodes = 0;
             NodeWithAlloc bestNode = null;
-            if (taskLabels == null) {
+            if (taskIsKnown(abstractTaskName)) {
                 // prioritize nodes with the most available resources (similar to FairAssign)
                 Double highestScore = null;
                 for (Map.Entry<NodeWithAlloc, Requirements> e : availableByNode.entrySet()) {
@@ -107,14 +104,7 @@ public abstract class TaremaScheduler extends Scheduler {
                     }
                     if (canSchedulePodOnNode(requirements, pod, node)) {
                         triedOnNodes++;
-                        Labels nodeLabels = getNodeLabels().get(node);
-                        int labelDifference;
-                        if (nodeLabels == null) {
-                            labelDifference = 0; // prioritize nodes with no labels to get them labeled
-                            // TODO: consider changing this
-                        } else {
-                            labelDifference = taskLabels.absoluteDifference(nodeLabels);
-                        }
+                        int labelDifference = nodeTaskLabelDifference(node, abstractTaskName);
                         final double score = highestResourceAvailabilityScore(task, node, requirements);
                         if (lowestLabelDifference == null || labelDifference < lowestLabelDifference
                                 || (labelDifference == lowestLabelDifference && score > highestAvailabilityScore)) {

@@ -172,8 +172,8 @@ public class NextflowTraceStorage {
         return getByIndex(getNodeIndex(node), nodeIds, getAll(field));
     }
 
-    public Stream<Float> getForIds(Stream<Integer> ids, FloatField field) {
-        return ids.map(i -> getAll(field).get(i));
+    public float getForId(int id, FloatField field) {
+        return getAll(field).get(id);
     }
 
     public Stream<Float> getForAbstractTask(String abstractTaskName, FloatField field) {
@@ -184,8 +184,8 @@ public class NextflowTraceStorage {
         return getByIndex(getNodeIndex(node), nodeIds, getAll(field));
     }
 
-    public Stream<Integer> getForIds(Stream<Integer> ids, IntegerField field) {
-        return ids.map(i -> getAll(field).get(i));
+    public int getForId(int id, IntegerField field) {
+        return getAll(field).get(id);
     }
 
     public Stream<Integer> getForAbstractTask(String abstractTaskName, IntegerField field) {
@@ -196,8 +196,8 @@ public class NextflowTraceStorage {
         return getByIndex(getNodeIndex(node), nodeIds, getAll(field));
     }
 
-    public Stream<Long> getForIds(Stream<Integer> ids, LongField field) {
-        return ids.map(i -> getAll(field).get(i));
+    public long getForId(int id, LongField field) {
+        return getAll(field).get(id);
     }
 
     public Stream<Long> getForAbstractTask(String abstractTaskName, LongField field) {

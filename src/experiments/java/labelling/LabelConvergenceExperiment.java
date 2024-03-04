@@ -4,14 +4,12 @@ import cws.k8s.scheduler.model.NodeWithAlloc;
 import cws.k8s.scheduler.model.TaskConfig;
 import cws.k8s.scheduler.scheduler.trace.NextflowTraceRecord;
 import labelling.approaches.Approach;
-import labelling.approaches.NaiveOnlineTaremaApproach;
-import labelling.approaches.TaremaApproach;
+import labelling.approaches.BenchmarkTaremaApproach;
+import labelling.approaches.OnlineTaremaApproach;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.ArrayUtils;
 
 import java.io.File;
-import java.io.FileWriter;
-import java.io.IOException;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.List;
@@ -20,7 +18,6 @@ import java.util.stream.Stream;
 @Slf4j
 public class LabelConvergenceExperiment {
     static String defaultPath = "/home/friedrich/bachelor/Lotaru-traces/traces";
-
     String experimentTimeStamp;
     String experimentName;
     String experimentLabel;
@@ -49,19 +46,21 @@ public class LabelConvergenceExperiment {
         SimpleDateFormat formatter = new SimpleDateFormat("yyyy-MM-dd--HH-mm-ss");
         String time = formatter.format(System.currentTimeMillis());
 
+        double onePointClusterScore = 0.0;
+
         if (all) {
             for (String experimentName : LotaruTraces.experiments) {
                 for (String label : LotaruTraces.labels) {
                     LabelConvergenceExperiment experiment = new LabelConvergenceExperiment(time, experimentName, label);
                     experiment.initializeTraces(args[0]);
-                    experiment.setApproaches();
+                    experiment.setApproaches(onePointClusterScore);
                     experiment.run();
                 }
             }
         } else {
             LabelConvergenceExperiment experiment = new LabelConvergenceExperiment(time, args[1], args[2]);
             experiment.initializeTraces(args[0]);
-            experiment.setApproaches();
+            experiment.setApproaches(onePointClusterScore);
             experiment.run();
         }
     }
@@ -84,16 +83,14 @@ public class LabelConvergenceExperiment {
         System.out.println("Finished reading traces.");
     }
 
-    void setApproaches() {
-        approaches.add(new TaremaApproach());
-        approaches.add(new NaiveOnlineTaremaApproach());
+    void setApproaches(double onePointClusterScore) {
+        approaches.add(new BenchmarkTaremaApproach(onePointClusterScore));
+        approaches.add(OnlineTaremaApproach.naive(onePointClusterScore));
+        approaches.add(OnlineTaremaApproach.smart(onePointClusterScore));
         System.out.println("Finished adding approaches.");
     }
 
     void run() {
-        for (Approach approach : approaches) {
-            approach.initialize();
-        }
         log.info("Finished initializing approaches.");
         Stream<String[]> lines = lotaruTraces.allLinesByTask();
         lines.forEachOrdered(line -> {
@@ -112,29 +109,12 @@ public class LabelConvergenceExperiment {
             approach.recalculate();
         }
         for (Approach approach : approaches) {
-            log.info("Approach {} has node labels:", approach.getClass().getName());
-            for (NodeWithAlloc showNode : LotaruTraces.nodes) {
-                log.info("Node \"{}\": {}", showNode.getName(), approach.getNodeLabels().get(showNode));
-            }
+            log.info("Approach {} has node labels:", approach.getName());
+            approach.printNodeLabels();
         }
-        // write labels to file
-        try {
-            String directory = "/home/friedrich/bachelor/scheduler/results/" + experimentTimeStamp;
-            if (new File(directory).mkdir()) {
-                log.info("Directory {} created", directory);
-            }
-            String name = experimentName + "-" + experimentLabel;
-            File file = new File(directory + "/" + name + ".txt");
-            FileWriter writer = new FileWriter(file);
-            for (Approach approach : approaches) {
-                writer.write(String.format("-- Approach %s --\n", approach.getClass().getName()));
-                for (NodeWithAlloc showNode : LotaruTraces.nodes) {
-                    writer.write(String.format("Node \"%s\": %s\n", showNode.getName(), approach.getNodeLabels().get(showNode)));
-                }
-            }
-            writer.close();
-        } catch (IOException e) {
-            log.error("Error writing to file: {}", e.getMessage());
+        for (Approach approach : approaches) {
+            System.out.printf("-- Approach %s --\n", approach.getName());
+            approach.printNodeLabels();
         }
     }
 }
