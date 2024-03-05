@@ -3,7 +3,7 @@ package labelling;
 import cws.k8s.scheduler.model.NodeWithAlloc;
 import cws.k8s.scheduler.model.Requirements;
 import cws.k8s.scheduler.model.TaskConfig;
-import cws.k8s.scheduler.scheduler.trace.NextflowTraceRecord;
+import cws.k8s.scheduler.scheduler.nextflow_trace.TraceRecord;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.ArrayUtils;
 import org.apache.commons.lang3.RandomUtils;
@@ -44,7 +44,7 @@ public class LotaruTraces {
     static String[] labels = new String[]{"test", "train-1", "train-2"};
 
     // TODO: should "local" be included?
-    public static Map<NodeWithAlloc, Double> lotaruCpuBenchmarkResults = new HashMap<>(
+    public static Map<NodeWithAlloc, Double> cpuBenchmarks = new HashMap<>(
             Map.of(
                     nodes[0], 458.0, // TODO: should "local" be included?
                     nodes[1], 223.0,
@@ -54,7 +54,7 @@ public class LotaruTraces {
                     nodes[5], 523.0
             )
     );
-    public static Map<NodeWithAlloc, Double> lotaruMemoryBenchmarkResults = new HashMap<>(
+    public static Map<NodeWithAlloc, Double> memoryBenchmarks = new HashMap<>(
             Map.of(
                     nodes[0], 18700.0, // TODO: should "local" be included?
                     nodes[1], 11000.0,
@@ -64,7 +64,7 @@ public class LotaruTraces {
                     nodes[5], 18900.0
             )
     );
-    public static Map<NodeWithAlloc, Double> lotaruReadBenchmarkResults = new HashMap<>(
+    public static Map<NodeWithAlloc, Double> readBenchmarks = new HashMap<>(
             Map.of(
                     nodes[0], 414.0, // TODO: should "local" be included?
                     nodes[1], 306.0,
@@ -74,7 +74,7 @@ public class LotaruTraces {
                     nodes[5], 481.0
             )
     );
-    public static Map<NodeWithAlloc, Double> lotaruWriteBenchmarkResults = new HashMap<>(
+    public static Map<NodeWithAlloc, Double> writeBenchmarks = new HashMap<>(
             Map.of(
                     nodes[0], 415.0, // TODO: should "local" be included?
                     nodes[1], 301.0,
@@ -260,8 +260,8 @@ public class LotaruTraces {
     static String[] traceValues = new String[]{"Realtime", "%cpu", "cpus", "rss", "rchar", "wchar", "read_bytes", "write_bytes", "vmem", "memory", "peak_rss"};
     static String[] zeroValues = new String[]{"%mem", "syscr", "syscw", "vol_ctxt", "inv_ctxt", "peak_vmem"};
 
-    NextflowTraceRecord taskTraceFromLine(String[] line) {
-        NextflowTraceRecord trace = new NextflowTraceRecord();
+    TraceRecord taskTraceFromLine(String[] line) {
+        TraceRecord trace = new TraceRecord();
         for (String valueName : traceValues) {
             String value = getFromLine(valueName, line);
             if (value != null) {

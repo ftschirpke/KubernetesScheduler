@@ -5,12 +5,16 @@ import cws.k8s.scheduler.model.NodeWithAlloc;
 import cws.k8s.scheduler.model.PodWithAge;
 import cws.k8s.scheduler.model.SchedulerConfig;
 import cws.k8s.scheduler.model.Task;
-import cws.k8s.scheduler.scheduler.online_tarema.*;
-import cws.k8s.scheduler.scheduler.trace.FloatField;
-import cws.k8s.scheduler.scheduler.trace.LongField;
-import cws.k8s.scheduler.scheduler.trace.NextflowTraceStorage;
+import cws.k8s.scheduler.scheduler.online_tarema.GroupWeights;
+import cws.k8s.scheduler.scheduler.online_tarema.NodeLabeller;
+import cws.k8s.scheduler.scheduler.online_tarema.SilhouetteScore;
+import cws.k8s.scheduler.scheduler.online_tarema.TaskLabeller;
+import cws.k8s.scheduler.scheduler.nextflow_trace.FloatField;
+import cws.k8s.scheduler.scheduler.nextflow_trace.LongField;
+import cws.k8s.scheduler.scheduler.nextflow_trace.TraceStorage;
 import lombok.extern.slf4j.Slf4j;
 
+import java.util.HashMap;
 import java.util.Map;
 
 @Slf4j
@@ -18,21 +22,21 @@ import java.util.Map;
  * This class reimplements the original Tarema scheduling approach very closely.
  */
 public class BenchmarkTaremaScheduler extends TaremaScheduler {
-    private final NextflowTraceStorage traces = new NextflowTraceStorage();
+    private final TraceStorage traces = new TraceStorage();
 
-    private final NodeLabeller.NodeLabelState cpuNodeLabelState;
+    private final NodeLabeller.LabelState cpuNodeLabelState;
     private final float[] cpuGroupWeights;
     private Map<String, Integer> cpuTaskLabels;
 
-    private final NodeLabeller.NodeLabelState memoryNodeLabelState;
+    private final NodeLabeller.LabelState memoryNodeLabelState;
     private final float[] memoryGroupWeights;
     private Map<String, Integer> memoryTaskLabels;
 
-    private final NodeLabeller.NodeLabelState readNodeLabelState;
+    private final NodeLabeller.LabelState readNodeLabelState;
     private final float[] readGroupWeights;
     private Map<String, Integer> readTaskLabels;
 
-    private final NodeLabeller.NodeLabelState writeNodeLabelState;
+    private final NodeLabeller.LabelState writeNodeLabelState;
     private final float[] writeGroupWeights;
     private Map<String, Integer> writeTaskLabels;
 
@@ -50,35 +54,35 @@ public class BenchmarkTaremaScheduler extends TaremaScheduler {
     }
 
     public BenchmarkTaremaScheduler(double onePointClusterScore,
-                                    Map<NodeWithAlloc, Double> cpuNodeEstimations,
-                                    Map<NodeWithAlloc, Double> memoryNodeEstimations,
-                                    Map<NodeWithAlloc, Double> readNodeEstimations,
-                                    Map<NodeWithAlloc, Double> writeNodeEstimations,
+                                    Map<NodeWithAlloc, Double> cpuSpeedEstimations,
+                                    Map<NodeWithAlloc, Double> memorySpeedEstimations,
+                                    Map<NodeWithAlloc, Double> readSpeedEstimations,
+                                    Map<NodeWithAlloc, Double> writeSpeedEstimations,
                                     String execution,
                                     KubernetesClient client,
                                     String namespace,
                                     SchedulerConfig config) {
         super(execution, client, namespace, config);
 
-        if (!cpuNodeEstimations.keySet().equals(memoryNodeEstimations.keySet())
-                || !cpuNodeEstimations.keySet().equals(readNodeEstimations.keySet())
-                || !cpuNodeEstimations.keySet().equals(writeNodeEstimations.keySet())) {
+        if (!cpuSpeedEstimations.keySet().equals(memorySpeedEstimations.keySet())
+                || !cpuSpeedEstimations.keySet().equals(readSpeedEstimations.keySet())
+                || !cpuSpeedEstimations.keySet().equals(writeSpeedEstimations.keySet())) {
             throw new IllegalArgumentException("Node estimations must be for the same nodes");
         }
-        cpuNodeLabelState = NodeLabeller.labelOnce(onePointClusterScore, cpuNodeEstimations);
-        memoryNodeLabelState = NodeLabeller.labelOnce(onePointClusterScore, memoryNodeEstimations);
-        readNodeLabelState = NodeLabeller.labelOnce(onePointClusterScore, readNodeEstimations);
-        writeNodeLabelState = NodeLabeller.labelOnce(onePointClusterScore, writeNodeEstimations);
+        cpuNodeLabelState = NodeLabeller.labelOnce(cpuSpeedEstimations, true, onePointClusterScore);
+        memoryNodeLabelState = NodeLabeller.labelOnce(memorySpeedEstimations, true, onePointClusterScore);
+        readNodeLabelState = NodeLabeller.labelOnce(readSpeedEstimations, true, onePointClusterScore);
+        writeNodeLabelState = NodeLabeller.labelOnce(writeSpeedEstimations, true, onePointClusterScore);
 
         cpuGroupWeights = GroupWeights.forLabels(cpuNodeLabelState.maxLabel(), cpuNodeLabelState.labels());
         memoryGroupWeights = GroupWeights.forLabels(memoryNodeLabelState.maxLabel(), memoryNodeLabelState.labels());
         readGroupWeights = GroupWeights.forLabels(readNodeLabelState.maxLabel(), readNodeLabelState.labels());
         writeGroupWeights = GroupWeights.forLabels(writeNodeLabelState.maxLabel(), writeNodeLabelState.labels());
 
-        cpuTaskLabels = Map.of();
-        memoryTaskLabels = Map.of();
-        readTaskLabels = Map.of();
-        writeTaskLabels = Map.of();
+        cpuTaskLabels = new HashMap<>();
+        memoryTaskLabels = new HashMap<>();
+        readTaskLabels = new HashMap<>();
+        writeTaskLabels = new HashMap<>();
     }
 
     @Override

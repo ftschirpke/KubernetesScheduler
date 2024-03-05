@@ -1,4 +1,4 @@
-package cws.k8s.scheduler.scheduler.trace;
+package cws.k8s.scheduler.scheduler.nextflow_trace;
 
 import cws.k8s.scheduler.dag.DAG;
 import cws.k8s.scheduler.dag.InputEdge;
@@ -17,7 +17,7 @@ import java.util.List;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 @Slf4j
-public class NextflowTraceRecordTest {
+public class TraceRecordTest {
 
     @Test
     public void readExampleTrace() {
@@ -33,7 +33,7 @@ public class NextflowTraceRecordTest {
         final TaskConfig config = new TaskConfig("a", path.toString());
         final Task task = new Task(config, dag);
 
-        final NextflowTraceRecord traceRecord = NextflowTraceRecord.from_task(task);
+        final TraceRecord traceRecord = TraceRecord.from_task(task);
 
         assertEquals(15L,traceRecord.getTimeValue("realtime"));
         assertEquals(790.0f, traceRecord.getPercentageValue("%cpu"));

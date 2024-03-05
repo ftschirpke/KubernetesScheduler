@@ -2,6 +2,7 @@ package cws.k8s.scheduler.scheduler.online_tarema;
 
 import lombok.extern.slf4j.Slf4j;
 
+import java.util.Collections;
 import java.util.List;
 
 @Slf4j
@@ -16,6 +17,12 @@ class Percentiles {
         this.range = maxValue - minValue;
         this.segments = weights.length;
         this.weights = weights;
+    }
+
+    public static <T extends Number & Comparable<T>> Percentiles from(List<T> values, float[] weights) {
+        T min = Collections.min(values);
+        T max = Collections.max(values);
+        return new Percentiles(min.doubleValue(), max.doubleValue(), weights);
     }
 
     public static Percentiles fromFloatValues(List<Float> values, float[] weights) {

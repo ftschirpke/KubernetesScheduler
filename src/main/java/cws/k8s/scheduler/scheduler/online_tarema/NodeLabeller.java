@@ -16,46 +16,49 @@ import java.util.stream.IntStream;
 
 @Slf4j
 public class NodeLabeller {
+    private final boolean higherIsBetter;
     @Getter
     private Integer maxLabel = null;
     @Getter
     private final Map<NodeWithAlloc, Integer> labels = new HashMap<>();
     private Map<NodeWithAlloc, Double> estimations = null;
-    private final SilhouetteScore<LabelledPoint<NodeWithAlloc>> silhouetteScore;
+    private final SilhouetteScore<PointWithName<NodeWithAlloc>> silhouetteScore;
     @Getter
     private final NodeEstimator estimator;
 
-    public NodeLabeller(NodeEstimator estimator) {
-        this(estimator, SilhouetteScore.DEFAULT_ONE_POINT_CLUSTER_SCORE);
+    public NodeLabeller(NodeEstimator estimator, boolean higherIsBetter) {
+        this(estimator, higherIsBetter, SilhouetteScore.DEFAULT_ONE_POINT_CLUSTER_SCORE);
     }
 
-    public NodeLabeller(NodeEstimator estimator, double onePointClusterScore) {
+    public NodeLabeller(NodeEstimator estimator, boolean higherIsBetter, double onePointClusterScore) {
         this.estimator = estimator;
         this.silhouetteScore = new SilhouetteScore<>(onePointClusterScore);
+        this.higherIsBetter = higherIsBetter;
     }
 
-    public record NodeLabelState(Integer maxLabel, Map<NodeWithAlloc, Integer> labels) {
+    public record LabelState(Integer maxLabel, Map<NodeWithAlloc, Integer> labels) {
     }
 
-    public static NodeLabeller.NodeLabelState labelOnce(Map<NodeWithAlloc, Double> estimations) {
-        return labelOnce(SilhouetteScore.DEFAULT_ONE_POINT_CLUSTER_SCORE, estimations);
+    public static LabelState labelOnce(Map<NodeWithAlloc, Double> estimations, boolean higherIsBetter) {
+        return labelOnce(estimations, higherIsBetter, SilhouetteScore.DEFAULT_ONE_POINT_CLUSTER_SCORE);
     }
 
-    public static NodeLabeller.NodeLabelState labelOnce(double onePointClusterScore,
-                                                        Map<NodeWithAlloc, Double> estimations) {
+    public static LabelState labelOnce(Map<NodeWithAlloc, Double> estimations,
+                                       boolean higherIsBetter,
+                                       double onePointClusterScore) {
         ConstantEstimator estimator = new ConstantEstimator(estimations);
-        NodeLabeller labeller = new NodeLabeller(estimator, onePointClusterScore);
+        NodeLabeller labeller = new NodeLabeller(estimator, higherIsBetter, onePointClusterScore);
         labeller.updateLabels();
         Integer maxLabel = labeller.getMaxLabel();
         Map<NodeWithAlloc, Integer> labels = labeller.getLabels();
-        return new NodeLabeller.NodeLabelState(maxLabel, labels);
+        return new LabelState(maxLabel, labels);
     }
 
     private Map<NodeWithAlloc, Integer> calculateNewLabels() {
-        List<LabelledPoint<NodeWithAlloc>> points = estimations.entrySet().stream()
-                .map(entry -> new LabelledPoint<>(entry.getKey(), entry.getValue()))
+        List<PointWithName<NodeWithAlloc>> points = estimations.entrySet().stream()
+                .map(entry -> new PointWithName<>(entry.getKey(), entry.getValue()))
                 .toList();
-        List<CentroidCluster<LabelledPoint<NodeWithAlloc>>> clusters = silhouetteScore.findBestKmeansClustering(points);
+        List<CentroidCluster<PointWithName<NodeWithAlloc>>> clusters = silhouetteScore.findBestKmeansClustering(points);
         if (clusters.isEmpty()) {
             return new HashMap<>();
         }
@@ -64,11 +67,18 @@ public class NodeLabeller {
                     .map(node -> Map.entry(node, 0))
                     .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
         }
-        clusters.sort(Comparator.comparingDouble(cluster -> cluster.getCenter().getPoint()[0]));
+
+        Comparator<CentroidCluster<PointWithName<NodeWithAlloc>>> comparator
+                = Comparator.comparingDouble(cluster -> cluster.getCenter().getPoint()[0]);
+        if (!higherIsBetter) {
+            comparator = comparator.reversed();
+        }
+        clusters.sort(comparator);
+
         return IntStream.range(0, clusters.size())
                 .boxed()
                 .flatMap(i -> clusters.get(i).getPoints().stream()
-                        .map(point -> Map.entry(point.getLabel(), i))
+                        .map(point -> Map.entry(point.getName(), i))
                 )
                 .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
     }

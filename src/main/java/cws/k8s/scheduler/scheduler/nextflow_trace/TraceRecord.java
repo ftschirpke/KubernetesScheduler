@@ -1,4 +1,4 @@
-package cws.k8s.scheduler.scheduler.trace;
+package cws.k8s.scheduler.scheduler.nextflow_trace;
 
 import cws.k8s.scheduler.model.Task;
 import lombok.ToString;
@@ -14,7 +14,7 @@ import java.util.stream.Stream;
 
 @Slf4j
 @ToString
-public class NextflowTraceRecord {
+public class TraceRecord {
     static final String TRACE_FILE_NAME = ".command.trace";
     static final String NEXTFLOW_TRACE_VERSION = "nextflow.trace/v2";
     static final String[] stringFields = {"cpu_model"};
@@ -31,7 +31,7 @@ public class NextflowTraceRecord {
     private final HashMap<String, Float> percentageEntries;
     private final HashMap<String, Long> memoryEntries;
 
-    public NextflowTraceRecord() {
+    public TraceRecord() {
         this.stringEntries = new HashMap<>();
         this.timeEntries = new HashMap<>();
         this.integerEntries = new HashMap<>();
@@ -87,8 +87,8 @@ public class NextflowTraceRecord {
         }
     }
 
-    public static NextflowTraceRecord from_task(Task task) {
-        NextflowTraceRecord traceRecord = new NextflowTraceRecord();
+    public static TraceRecord from_task(Task task) {
+        TraceRecord traceRecord = new TraceRecord();
         Path path = Paths.get(task.getWorkingDir(), TRACE_FILE_NAME);
         try (Stream<String> lines = Files.lines(path)) {
             lines.forEach(line -> {

@@ -11,9 +11,9 @@ import cws.k8s.scheduler.scheduler.online_tarema.SilhouetteScore;
 import cws.k8s.scheduler.scheduler.online_tarema.TaskLabeller;
 import cws.k8s.scheduler.scheduler.online_tarema.node_estimator.NodeEstimator;
 import cws.k8s.scheduler.scheduler.online_tarema.node_estimator.PythonNodeEstimator;
-import cws.k8s.scheduler.scheduler.trace.FloatField;
-import cws.k8s.scheduler.scheduler.trace.LongField;
-import cws.k8s.scheduler.scheduler.trace.NextflowTraceStorage;
+import cws.k8s.scheduler.scheduler.nextflow_trace.FloatField;
+import cws.k8s.scheduler.scheduler.nextflow_trace.LongField;
+import cws.k8s.scheduler.scheduler.nextflow_trace.TraceStorage;
 import lombok.extern.slf4j.Slf4j;
 
 import java.util.HashMap;
@@ -21,7 +21,7 @@ import java.util.Map;
 
 @Slf4j
 public class OnlineTaremaScheduler extends TaremaScheduler {
-    private final NextflowTraceStorage traces = new NextflowTraceStorage();
+    private final TraceStorage traces = new TraceStorage();
     private final NodeLabeller nodeLabeller;
     private Map<String, Integer> taskLabels = new HashMap<>();
 
@@ -39,7 +39,7 @@ public class OnlineTaremaScheduler extends TaremaScheduler {
                                  double onePointClusterScore) {
         super(execution, client, namespace, config);
         NodeEstimator estimator = new PythonNodeEstimator("external/node-ranker.py");
-        this.nodeLabeller = new NodeLabeller(estimator, onePointClusterScore);
+        this.nodeLabeller = new NodeLabeller(estimator, false, onePointClusterScore);
     }
 
     @Override
