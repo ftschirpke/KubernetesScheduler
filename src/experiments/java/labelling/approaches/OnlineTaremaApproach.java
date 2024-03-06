@@ -2,10 +2,7 @@ package labelling.approaches;
 
 import cws.k8s.scheduler.model.NodeWithAlloc;
 import cws.k8s.scheduler.model.TaskConfig;
-import cws.k8s.scheduler.scheduler.nextflow_trace.LongField;
-import cws.k8s.scheduler.scheduler.nextflow_trace.TraceField;
-import cws.k8s.scheduler.scheduler.nextflow_trace.TraceRecord;
-import cws.k8s.scheduler.scheduler.nextflow_trace.TraceStorage;
+import cws.k8s.scheduler.scheduler.nextflow_trace.*;
 import cws.k8s.scheduler.scheduler.online_tarema.GroupWeights;
 import cws.k8s.scheduler.scheduler.online_tarema.NodeLabeller;
 import cws.k8s.scheduler.scheduler.online_tarema.SilhouetteScore;
@@ -43,7 +40,7 @@ public class OnlineTaremaApproach<T extends Number & Comparable<T>> implements A
                                 double singlePointClusterScore,
                                 NodeEstimator estimator,
                                 String name) {
-        this.name = name;
+        this.name = String.format("%s(%f)", name, singlePointClusterScore);
         this.target = target;
         this.silhouetteScore = new SilhouetteScore<>(singlePointClusterScore);
 
@@ -98,7 +95,7 @@ public class OnlineTaremaApproach<T extends Number & Comparable<T>> implements A
         if (labelsChanged && !nodeLabeller.getLabels().isEmpty()) {
             float[] groupWeights = GroupWeights.forLabels(nodeLabeller.getMaxLabel(), nodeLabeller.getLabels());
             // HACK: to change the target field, change the Field here
-            taskLabels = TaskLabeller.taskLabels(traceStorage, target, groupWeights);
+            taskLabels = TaskLabeller.logarithmicTaskLabels(traceStorage, LongField.REALTIME, groupWeights);
         }
     }
 

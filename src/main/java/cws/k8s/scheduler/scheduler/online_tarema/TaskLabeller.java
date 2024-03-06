@@ -25,4 +25,25 @@ public class TaskLabeller {
                 })
                 .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
     }
+
+    public static <T extends Number & Comparable<T>> Map<String, Integer> logarithmicTaskLabels(TraceStorage traces,
+                                                                                                TraceField<T> field,
+                                                                                                float[] groupWeights) {
+        if (traces.empty()) {
+            return Map.of();
+        }
+        List<T> allValues = traces.getAll(field);
+        List<Double> logarithmicValues = allValues.stream()
+                .map(value -> Math.log(value.doubleValue()))
+                .toList();
+        Percentiles percentiles = Percentiles.from(logarithmicValues, groupWeights);
+        return traces.getAbstractTaskNames().stream()
+                .map(abstractTaskName -> {
+                    Stream<T> taskValues = traces.getForAbstractTask(abstractTaskName, field);
+                    double avgValue = taskValues.mapToDouble(T::doubleValue).average().orElseThrow();
+                    int label = percentiles.percentileNumber(Math.log(avgValue));
+                    return Map.entry(abstractTaskName, label);
+                })
+                .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+    }
 }

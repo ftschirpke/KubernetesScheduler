@@ -5,7 +5,7 @@ import cws.k8s.scheduler.model.NodeWithAlloc;
 import cws.k8s.scheduler.model.PodWithAge;
 import cws.k8s.scheduler.model.SchedulerConfig;
 import cws.k8s.scheduler.model.Task;
-import cws.k8s.scheduler.scheduler.nextflow_trace.FloatField;
+import cws.k8s.scheduler.scheduler.nextflow_trace.LongField;
 import cws.k8s.scheduler.scheduler.nextflow_trace.TraceStorage;
 import cws.k8s.scheduler.scheduler.online_tarema.GroupWeights;
 import cws.k8s.scheduler.scheduler.online_tarema.NodeLabeller;
@@ -103,7 +103,7 @@ public class SimpleBenchmarkTaremaScheduler extends TaremaScheduler {
     void recalculateTaskLabels() {
         long startTime = System.currentTimeMillis();
 
-        taskLabels = TaskLabeller.taskLabels(traces, FloatField.CPU_PERCENTAGE, groupWeights); // TODO: maybe change the field
+        taskLabels = TaskLabeller.logarithmicTaskLabels(traces, LongField.REALTIME, groupWeights);
 
         long endTime = System.currentTimeMillis();
         log.info("Benchmark Tarema Scheduler: Task labels recalculated in {} ms.", endTime - startTime);

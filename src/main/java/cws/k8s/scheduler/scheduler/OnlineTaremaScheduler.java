@@ -5,15 +5,14 @@ import cws.k8s.scheduler.model.NodeWithAlloc;
 import cws.k8s.scheduler.model.PodWithAge;
 import cws.k8s.scheduler.model.SchedulerConfig;
 import cws.k8s.scheduler.model.Task;
+import cws.k8s.scheduler.scheduler.nextflow_trace.LongField;
+import cws.k8s.scheduler.scheduler.nextflow_trace.TraceStorage;
 import cws.k8s.scheduler.scheduler.online_tarema.GroupWeights;
 import cws.k8s.scheduler.scheduler.online_tarema.NodeLabeller;
 import cws.k8s.scheduler.scheduler.online_tarema.SilhouetteScore;
 import cws.k8s.scheduler.scheduler.online_tarema.TaskLabeller;
 import cws.k8s.scheduler.scheduler.online_tarema.node_estimator.NodeEstimator;
 import cws.k8s.scheduler.scheduler.online_tarema.node_estimator.PythonNodeEstimator;
-import cws.k8s.scheduler.scheduler.nextflow_trace.FloatField;
-import cws.k8s.scheduler.scheduler.nextflow_trace.LongField;
-import cws.k8s.scheduler.scheduler.nextflow_trace.TraceStorage;
 import lombok.extern.slf4j.Slf4j;
 
 import java.util.HashMap;
@@ -102,8 +101,7 @@ public class OnlineTaremaScheduler extends TaremaScheduler {
         long startTime = System.currentTimeMillis();
 
         float[] groupWeights = GroupWeights.forLabels(nodeLabeller.getMaxLabel(), nodeLabeller.getLabels());
-        taskLabels = TaskLabeller.taskLabels(traces, FloatField.CPU_PERCENTAGE, groupWeights);
-        // TODO: cpu percentage or realtime here?
+        taskLabels = TaskLabeller.logarithmicTaskLabels(traces, LongField.REALTIME, groupWeights);
 
         long endTime = System.currentTimeMillis();
         log.info("Online Tarema Scheduler: Task labels recalculated in {} ms.", endTime - startTime);
