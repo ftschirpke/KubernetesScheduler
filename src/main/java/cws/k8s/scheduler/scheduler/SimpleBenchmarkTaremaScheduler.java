@@ -15,6 +15,8 @@ import lombok.extern.slf4j.Slf4j;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Optional;
+import java.util.stream.Collectors;
 
 @Slf4j
 /*
@@ -27,23 +29,37 @@ public class SimpleBenchmarkTaremaScheduler extends TaremaScheduler {
     private final float[] groupWeights;
     private Map<String, Integer> taskLabels = new HashMap<>();
 
-    public SimpleBenchmarkTaremaScheduler(Map<NodeWithAlloc, Double> speedEstimations,
-                                          String execution,
+    public SimpleBenchmarkTaremaScheduler(String execution,
                                           KubernetesClient client,
                                           String namespace,
-                                          SchedulerConfig config) {
-        this(SilhouetteScore.DEFAULT_ONE_POINT_CLUSTER_SCORE, speedEstimations, execution, client, namespace, config);
+                                          SchedulerConfig config,
+                                          Map<String, Double> speedEstimations) {
+        this(execution, client, namespace, config, speedEstimations, SilhouetteScore.DEFAULT_ONE_POINT_CLUSTER_SCORE);
     }
 
-    public SimpleBenchmarkTaremaScheduler(double singlePointClusterScore,
-                                          Map<NodeWithAlloc, Double> speedEstimations,
-                                          String execution,
+    public SimpleBenchmarkTaremaScheduler(String execution,
                                           KubernetesClient client,
                                           String namespace,
-                                          SchedulerConfig config) {
+                                          SchedulerConfig config,
+                                          Map<String, Double> speedEstimations,
+                                          double singlePointClusterScore) {
         super(execution, client, namespace, config);
 
-        nodeLabelState = NodeLabeller.labelOnce(speedEstimations, true, singlePointClusterScore);
+        Map<NodeWithAlloc, Double> estimations = speedEstimations.entrySet().stream()
+                .map(entry -> {
+                    String nodeName = entry.getKey();
+                    Double estimation = entry.getValue();
+                    Optional<NodeWithAlloc> node = getNodeList().stream()
+                            .filter(n -> n.getName().equals(nodeName))
+                            .findFirst();
+                    if (node.isEmpty()) {
+                        throw new IllegalArgumentException("Found node estimations for non-existing node " + nodeName + ".");
+                    }
+                    return Map.entry(node.get(), estimation);
+                })
+                .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+
+        nodeLabelState = NodeLabeller.labelOnce(estimations, true, singlePointClusterScore);
         groupWeights = GroupWeights.forLabels(nodeLabelState.maxLabel(), nodeLabelState.labels());
     }
 

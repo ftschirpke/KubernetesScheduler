@@ -5,17 +5,19 @@ import cws.k8s.scheduler.model.NodeWithAlloc;
 import cws.k8s.scheduler.model.PodWithAge;
 import cws.k8s.scheduler.model.SchedulerConfig;
 import cws.k8s.scheduler.model.Task;
+import cws.k8s.scheduler.scheduler.nextflow_trace.FloatField;
+import cws.k8s.scheduler.scheduler.nextflow_trace.LongField;
+import cws.k8s.scheduler.scheduler.nextflow_trace.TraceStorage;
 import cws.k8s.scheduler.scheduler.online_tarema.GroupWeights;
 import cws.k8s.scheduler.scheduler.online_tarema.NodeLabeller;
 import cws.k8s.scheduler.scheduler.online_tarema.SilhouetteScore;
 import cws.k8s.scheduler.scheduler.online_tarema.TaskLabeller;
-import cws.k8s.scheduler.scheduler.nextflow_trace.FloatField;
-import cws.k8s.scheduler.scheduler.nextflow_trace.LongField;
-import cws.k8s.scheduler.scheduler.nextflow_trace.TraceStorage;
 import lombok.extern.slf4j.Slf4j;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Optional;
+import java.util.stream.Collectors;
 
 @Slf4j
 /*
@@ -40,28 +42,28 @@ public class BenchmarkTaremaScheduler extends TaremaScheduler {
     private final float[] writeGroupWeights;
     private Map<String, Integer> writeTaskLabels = new HashMap<>();
 
-    public BenchmarkTaremaScheduler(Map<NodeWithAlloc, Double> cpuSpeedEstimations,
-                                    Map<NodeWithAlloc, Double> memorySpeedEstimations,
-                                    Map<NodeWithAlloc, Double> readSpeedEstimations,
-                                    Map<NodeWithAlloc, Double> writeSpeedEstimations,
-                                    String execution,
+    public BenchmarkTaremaScheduler(String execution,
                                     KubernetesClient client,
                                     String namespace,
-                                    SchedulerConfig config) {
-        this(SilhouetteScore.DEFAULT_ONE_POINT_CLUSTER_SCORE,
+                                    SchedulerConfig config,
+                                    Map<String, Double> cpuSpeedEstimations,
+                                    Map<String, Double> memorySpeedEstimations,
+                                    Map<String, Double> readSpeedEstimations,
+                                    Map<String, Double> writeSpeedEstimations) {
+        this(execution, client, namespace, config,
                 cpuSpeedEstimations, memorySpeedEstimations, readSpeedEstimations, writeSpeedEstimations,
-                execution, client, namespace, config);
+                SilhouetteScore.DEFAULT_ONE_POINT_CLUSTER_SCORE);
     }
 
-    public BenchmarkTaremaScheduler(double singlePointClusterScore,
-                                    Map<NodeWithAlloc, Double> cpuSpeedEstimations,
-                                    Map<NodeWithAlloc, Double> memorySpeedEstimations,
-                                    Map<NodeWithAlloc, Double> readSpeedEstimations,
-                                    Map<NodeWithAlloc, Double> writeSpeedEstimations,
-                                    String execution,
+    public BenchmarkTaremaScheduler(String execution,
                                     KubernetesClient client,
                                     String namespace,
-                                    SchedulerConfig config) {
+                                    SchedulerConfig config,
+                                    Map<String, Double> cpuSpeedEstimations,
+                                    Map<String, Double> memorySpeedEstimations,
+                                    Map<String, Double> readSpeedEstimations,
+                                    Map<String, Double> writeSpeedEstimations,
+                                    double singlePointClusterScore) {
         super(execution, client, namespace, config);
 
         if (!cpuSpeedEstimations.keySet().equals(memorySpeedEstimations.keySet())
@@ -69,15 +71,36 @@ public class BenchmarkTaremaScheduler extends TaremaScheduler {
                 || !cpuSpeedEstimations.keySet().equals(writeSpeedEstimations.keySet())) {
             throw new IllegalArgumentException("Node estimations must be for the same nodes");
         }
-        cpuNodeLabelState = NodeLabeller.labelOnce(cpuSpeedEstimations, true, singlePointClusterScore);
-        memoryNodeLabelState = NodeLabeller.labelOnce(memorySpeedEstimations, true, singlePointClusterScore);
-        readNodeLabelState = NodeLabeller.labelOnce(readSpeedEstimations, true, singlePointClusterScore);
-        writeNodeLabelState = NodeLabeller.labelOnce(writeSpeedEstimations, true, singlePointClusterScore);
+        Map<NodeWithAlloc, Double> cpuEstimations = mapEstimationsToNodes(cpuSpeedEstimations);
+        Map<NodeWithAlloc, Double> memoryEstimations = mapEstimationsToNodes(memorySpeedEstimations);
+        Map<NodeWithAlloc, Double> readEstimations = mapEstimationsToNodes(readSpeedEstimations);
+        Map<NodeWithAlloc, Double> writeEstimations = mapEstimationsToNodes(writeSpeedEstimations);
+
+        cpuNodeLabelState = NodeLabeller.labelOnce(cpuEstimations, true, singlePointClusterScore);
+        memoryNodeLabelState = NodeLabeller.labelOnce(memoryEstimations, true, singlePointClusterScore);
+        readNodeLabelState = NodeLabeller.labelOnce(readEstimations, true, singlePointClusterScore);
+        writeNodeLabelState = NodeLabeller.labelOnce(writeEstimations, true, singlePointClusterScore);
 
         cpuGroupWeights = GroupWeights.forLabels(cpuNodeLabelState.maxLabel(), cpuNodeLabelState.labels());
         memoryGroupWeights = GroupWeights.forLabels(memoryNodeLabelState.maxLabel(), memoryNodeLabelState.labels());
         readGroupWeights = GroupWeights.forLabels(readNodeLabelState.maxLabel(), readNodeLabelState.labels());
         writeGroupWeights = GroupWeights.forLabels(writeNodeLabelState.maxLabel(), writeNodeLabelState.labels());
+    }
+
+    Map<NodeWithAlloc, Double> mapEstimationsToNodes(Map<String, Double> estimations) {
+        return estimations.entrySet().stream()
+                .map(entry -> {
+                    String nodeName = entry.getKey();
+                    Double estimation = entry.getValue();
+                    Optional<NodeWithAlloc> node = getNodeList().stream()
+                            .filter(n -> n.getName().equals(nodeName))
+                            .findFirst();
+                    if (node.isEmpty()) {
+                        throw new IllegalArgumentException("Found node estimations for non-existing node " + nodeName + ".");
+                    }
+                    return Map.entry(node.get(), estimation);
+                })
+                .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
     }
 
     @Override
