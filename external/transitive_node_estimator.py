@@ -1,70 +1,21 @@
-from . import OnlineModel
+from node_estimator import main_loop, NodeEstimator, Range, Line
 
 from collections import defaultdict, deque
-from dataclasses import dataclass
 from typing import List, Dict
 
 import numpy as np
 import pandas as pd
 from sklearn.linear_model import BayesianRidge
 
-NODE_COL = "node"
-TASK_COL = "task"
+NODE = "node"
+TASK = "task"
 
-FEATURE_COL = "rchar"
-
-
-@dataclass
-class Range:
-    start: float
-    end: float
-
-    def width(self):
-        return self.end - self.start
-
-    def intersection(self, other: "Range") -> "Range":
-        start = max(self.start, other.start)
-        end = min(self.end, other.end)
-        return Range(start, end)
+FEATURE = "rchar"
+TARGET = "target"
 
 
-@dataclass
-class Line:
-    coef: float
-    intercept: float
-
-    def __repr__(self):
-        return f"y = {self.coef}x + {self.intercept}"
-
-    def evaluate(self, x: float) -> float:
-        return self.coef * x + self.intercept
-
-    def area_on_interval(self, interval: Range) -> float:
-        first = self.evaluate(interval.start)
-        second = self.evaluate(interval.end)
-        return (first + second) * interval.width() / 2
-
-    def absolute_compare_on_interval(self, other: "Line", interval: Range) -> float:
-        """
-        Compares two lines on the given interval. Returns the difference in area between the two lines.
-        """
-        self_area = self.area_on_interval(interval)
-        other_area = other.area_on_interval(interval)
-        return self_area - other_area
-
-    def relative_compare_on_interval(self, other: "Line", interval: Range) -> float:
-        """
-        Compares two lines on the given interval. Returns the fraction of the area of the self line to the area of the other line.
-        """
-        self_area = self.area_on_interval(interval)
-        other_area = other.area_on_interval(interval)
-        return self_area / other_area
-
-
-class NodeRankingV2:
-
-    def __init__(self, target_feature: str):
-        self.target = target_feature
+class TransitiveNodeEstimator(NodeEstimator):
+    def __init__(self):
         self.data: pd.DataFrame = None
         self.nodes: List[str] = []
         self.tasks: List[str] = []
@@ -75,6 +26,9 @@ class NodeRankingV2:
         self.ratio_matrices_by_task: Dict[str, np.array] = {}
         self.weight_matrices_by_task: Dict[str, np.array] = {}
         self.comparison_possible: np.array = None
+
+    def node_count(self) -> int:
+        return len(self.nodes)
 
     def _add_node(self, node: str) -> None:
         self.nodes.append(node)
@@ -87,9 +41,9 @@ class NodeRankingV2:
 
     def _add_task(self, task: str) -> None:
         self.tasks.append(task)
-        node_count = len(self.nodes)
-        self.ratio_matrices_by_task[task] = np.zeros((node_count, node_count), dtype=np.float64)
-        self.weight_matrices_by_task[task] = np.zeros((node_count, node_count), dtype=np.int32)
+        shape = (self.node_count(), self.node_count())
+        self.ratio_matrices_by_task[task] = np.zeros(shape, dtype=np.float64)
+        self.weight_matrices_by_task[task] = np.zeros(shape, dtype=np.int32)
 
     def learn(self, sample: Dict) -> None:
         if self.data is None:
@@ -97,8 +51,8 @@ class NodeRankingV2:
         else:
             self.data.loc[len(self.data)] = sample
 
-        node = sample[NODE_COL]
-        task = sample[TASK_COL]
+        node = sample[NODE]
+        task = sample[TASK]
         if node not in self.nodes:
             self._add_node(node)
         if task not in self.tasks:
@@ -109,8 +63,7 @@ class NodeRankingV2:
         # TODO: remove these assertions:
         assert set(self.ratio_matrices_by_task.keys()) == set(self.tasks)
         assert set(self.weight_matrices_by_task.keys()) == set(self.tasks)
-        node_count = len(self.nodes)
-        wanted_shape = (node_count, node_count)
+        wanted_shape = (self.node_count(), self.node_count())
         for mat in self.ratio_matrices_by_task.values():
             assert mat.shape == wanted_shape
         for mat in self.weight_matrices_by_task.values():
@@ -121,9 +74,9 @@ class NodeRankingV2:
             self._update_ratios(task, node)
 
     def accumulated_ratios(self) -> np.array:
-        node_count = len(self.nodes)
-        weighted_ratios_summed = np.zeros((node_count, node_count), dtype=np.float64)
-        weights_summed = np.zeros((node_count, node_count), dtype=np.int32)
+        shape = (self.node_count(), self.node_count())
+        weighted_ratios_summed = np.zeros(shape, dtype=np.float64)
+        weights_summed = np.zeros(shape, dtype=np.int32)
         for task, ratio_matrix in self.ratio_matrices_by_task.items():
             weight_matrix = self.weight_matrices_by_task[task]
             weighted_ratios_summed += np.multiply(ratio_matrix, weight_matrix)
@@ -134,8 +87,8 @@ class NodeRankingV2:
         return np.divide(weighted_ratios_summed, adjusted_weights)
 
     def _update_line(self, task: str, node: str) -> bool:
-        task_data = self.data[self.data[TASK_COL] == task]
-        data = task_data[task_data[NODE_COL] == node]
+        task_data = self.data[self.data[TASK] == task]
+        data = task_data[task_data[NODE] == node]
 
         # TODO: remove assertion and move if statement to the beginning
         assert self.data_counts[task][node] == len(data)
@@ -143,12 +96,12 @@ class NodeRankingV2:
             return False
 
         model = BayesianRidge(alpha_init=1, lambda_init=0.001)
-        x = data[FEATURE_COL].values.reshape(-1, 1)
-        y = data[self.target].values
+        x = data[FEATURE].values.reshape(-1, 1)
+        y = data[TARGET].values
         model.fit(x, y)
 
-        x_min = data[FEATURE_COL].min()
-        x_max = data[FEATURE_COL].max()
+        x_min = data[FEATURE].min()
+        x_max = data[FEATURE].max()
         self.ranges[task][node] = Range(x_min, x_max)
 
         coef = model.coef_[0]
@@ -182,7 +135,7 @@ class NodeRankingV2:
             if intersect_range.width() <= 0:
                 continue
 
-            ratio = node_line.relative_compare_on_interval(other_node_line, intersect_range)
+            ratio = node_line.compare_on_interval(other_node_line, intersect_range)
             ratio = np.log(ratio)
             weight = (node_data_count - 1) * (other_node_data_count - 1)
 
@@ -199,7 +152,7 @@ class NodeRankingV2:
         distances[distances == 0] = vertice_count
 
         # TODO: remove these assertions
-        assert vertice_count == len(self.nodes)
+        assert vertice_count == self.node_count()
         assert distances.shape == (vertice_count, vertice_count)
 
         predecessors = np.zeros(distances.shape, dtype=np.int32)
@@ -216,17 +169,16 @@ class NodeRankingV2:
 
         return distances, predecessors
 
-    def ready_for_ranking(self) -> bool:
-        distances, _ = self._floyd_warshall()
-        return np.all(distances < len(self.nodes))  # every node can reach (be compared to) any other node
-
     def transitive_ratios(self) -> np.array:
+        distances, predecessors = self._floyd_warshall()
+        if np.any(distances >= self.node_count()):
+            # not ready for ranking
+            return None
+
         accumulated_ratios = self.accumulated_ratios()
         ratios_calculated = self.comparison_possible.copy()
         for i, _ in enumerate(self.nodes):
             ratios_calculated[i][i] = True
-
-        _, predecessors = self._floyd_warshall()
 
         todo_stack = deque()
         for start_node, dest_node in np.argwhere(ratios_calculated == False):
@@ -250,9 +202,16 @@ class NodeRankingV2:
 
     def ranking(self) -> Dict:
         ratios = self.transitive_ratios()
-        ratio_sums = np.sum(ratios, axis=1) / len(self.nodes)
+        if ratios is None:
+            return None
+        ratio_sums = np.sum(ratios, axis=1) / self.node_count()
         return dict(zip(self.nodes, ratio_sums))
 
 
 def _is_valid_data(node_data_count: int, node_line: Line, node_range: Range) -> bool:
     return node_data_count >= 2 and node_line is not None and node_range is not None and node_range.width() > 0
+
+
+if __name__ == "__main__":
+    estimator = TransitiveNodeEstimator()
+    main_loop(estimator)

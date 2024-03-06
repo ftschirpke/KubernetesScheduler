@@ -42,27 +42,30 @@ public class LabelConvergenceExperiment {
         }
 
         boolean all = false;
-        double onePointClusterScore = 0.0;
+        double onePointClusterScore = 0.8;
+        TraceField<Long> target = LongField.REALTIME;
+        boolean higherIsBetter = false;
 
         if (all) {
             for (String experimentName : LotaruTraces.experiments) {
                 for (String label : LotaruTraces.labels) {
-                    experiment(args[0], experimentName, label, LongField.REALTIME, onePointClusterScore);
+                    experiment(args[0], experimentName, label, target, higherIsBetter, onePointClusterScore);
                 }
             }
         } else {
-            experiment(args[0], args[1], args[2], LongField.REALTIME, onePointClusterScore);
+            experiment(args[0], args[1], args[2], target, higherIsBetter, onePointClusterScore);
         }
     }
 
     public static <T extends Number & Comparable<T>> void experiment(String lotaruTracesDir,
-                                      String experimentName,
-                                      String label,
-                                      TraceField<T> target,
-                                      double onePointClusterScore) {
+                                                                     String experimentName,
+                                                                     String label,
+                                                                     TraceField<T> target,
+                                                                     boolean higherIsBetter,
+                                                                     double onePointClusterScore) {
         LabelConvergenceExperiment experiment = new LabelConvergenceExperiment(experimentName, label);
         experiment.initializeTraces(lotaruTracesDir);
-        experiment.setApproaches(target, onePointClusterScore);
+        experiment.setApproaches(target, higherIsBetter, onePointClusterScore);
         experiment.run();
     }
 
@@ -83,10 +86,11 @@ public class LabelConvergenceExperiment {
         System.out.println("Finished reading traces.");
     }
 
-    <T extends Number & Comparable<T>> void setApproaches(TraceField<T> target, double onePointClusterScore) {
+    <T extends Number & Comparable<T>> void setApproaches(TraceField<T> target, boolean higherIsBetter, double onePointClusterScore) {
         approaches.add(new BenchmarkTaremaApproach(onePointClusterScore));
-        approaches.add(OnlineTaremaApproach.naive(target, onePointClusterScore));
-        approaches.add(OnlineTaremaApproach.smart(target, onePointClusterScore));
+        approaches.add(OnlineTaremaApproach.naive(target, higherIsBetter, onePointClusterScore));
+        approaches.add(OnlineTaremaApproach.smart(target, higherIsBetter, onePointClusterScore));
+        approaches.add(OnlineTaremaApproach.tarema(target, LotaruTraces.cpuBenchmarks, true, onePointClusterScore));
         System.out.println("Finished adding approaches.");
     }
 
@@ -109,11 +113,7 @@ public class LabelConvergenceExperiment {
             approach.recalculate();
         }
         for (Approach approach : approaches) {
-            log.info("Approach {} has node labels:", approach.getName());
-            approach.printNodeLabels();
-        }
-        for (Approach approach : approaches) {
-            System.out.printf("-- Approach %s --\n", approach.getName());
+            System.out.printf("----- Approach %s -----\n", approach.getName());
             approach.printNodeLabels();
         }
     }

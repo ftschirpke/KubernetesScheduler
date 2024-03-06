@@ -26,30 +26,30 @@ public class BenchmarkTaremaScheduler extends TaremaScheduler {
 
     private final NodeLabeller.LabelState cpuNodeLabelState;
     private final float[] cpuGroupWeights;
-    private Map<String, Integer> cpuTaskLabels;
+    private Map<String, Integer> cpuTaskLabels = new HashMap<>();
 
     private final NodeLabeller.LabelState memoryNodeLabelState;
     private final float[] memoryGroupWeights;
-    private Map<String, Integer> memoryTaskLabels;
+    private Map<String, Integer> memoryTaskLabels = new HashMap<>();
 
     private final NodeLabeller.LabelState readNodeLabelState;
     private final float[] readGroupWeights;
-    private Map<String, Integer> readTaskLabels;
+    private Map<String, Integer> readTaskLabels = new HashMap<>();
 
     private final NodeLabeller.LabelState writeNodeLabelState;
     private final float[] writeGroupWeights;
-    private Map<String, Integer> writeTaskLabels;
+    private Map<String, Integer> writeTaskLabels = new HashMap<>();
 
-    public BenchmarkTaremaScheduler(Map<NodeWithAlloc, Double> cpuNodeEstimations,
-                                    Map<NodeWithAlloc, Double> memoryNodeEstimations,
-                                    Map<NodeWithAlloc, Double> readNodeEstimations,
-                                    Map<NodeWithAlloc, Double> writeNodeEstimations,
+    public BenchmarkTaremaScheduler(Map<NodeWithAlloc, Double> cpuSpeedEstimations,
+                                    Map<NodeWithAlloc, Double> memorySpeedEstimations,
+                                    Map<NodeWithAlloc, Double> readSpeedEstimations,
+                                    Map<NodeWithAlloc, Double> writeSpeedEstimations,
                                     String execution,
                                     KubernetesClient client,
                                     String namespace,
                                     SchedulerConfig config) {
         this(SilhouetteScore.DEFAULT_ONE_POINT_CLUSTER_SCORE,
-                cpuNodeEstimations, memoryNodeEstimations, readNodeEstimations, writeNodeEstimations,
+                cpuSpeedEstimations, memorySpeedEstimations, readSpeedEstimations, writeSpeedEstimations,
                 execution, client, namespace, config);
     }
 
@@ -78,11 +78,6 @@ public class BenchmarkTaremaScheduler extends TaremaScheduler {
         memoryGroupWeights = GroupWeights.forLabels(memoryNodeLabelState.maxLabel(), memoryNodeLabelState.labels());
         readGroupWeights = GroupWeights.forLabels(readNodeLabelState.maxLabel(), readNodeLabelState.labels());
         writeGroupWeights = GroupWeights.forLabels(writeNodeLabelState.maxLabel(), writeNodeLabelState.labels());
-
-        cpuTaskLabels = new HashMap<>();
-        memoryTaskLabels = new HashMap<>();
-        readTaskLabels = new HashMap<>();
-        writeTaskLabels = new HashMap<>();
     }
 
     @Override

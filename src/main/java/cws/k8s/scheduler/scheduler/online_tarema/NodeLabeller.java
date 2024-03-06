@@ -7,10 +7,7 @@ import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.math3.ml.clustering.CentroidCluster;
 
-import java.util.Comparator;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -21,6 +18,7 @@ public class NodeLabeller {
     private Integer maxLabel = null;
     @Getter
     private final Map<NodeWithAlloc, Integer> labels = new HashMap<>();
+    @Getter // TODO: remove getter (was added for testing and label experiments)
     private Map<NodeWithAlloc, Double> estimations = null;
     private final SilhouetteScore<PointWithName<NodeWithAlloc>> silhouetteScore;
     @Getter

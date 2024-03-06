@@ -1,7 +1,6 @@
 package cws.k8s.scheduler.scheduler.online_tarema.node_estimator;
 
 import cws.k8s.scheduler.model.NodeWithAlloc;
-import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 
 import java.io.*;
@@ -14,10 +13,10 @@ public class PythonNodeEstimator implements NodeEstimator {
     private final BufferedReader stderrReader;
     private final PrintWriter stdinWriter;
     private int estimationsCounter = 0;
-    @Getter
-    private final Set<NodeWithAlloc> nodes = new HashSet<>();
+    private final Set<NodeWithAlloc> nodes;
 
-    public PythonNodeEstimator(String pythonScriptPath) {
+    public PythonNodeEstimator(String pythonScriptPath, Set<NodeWithAlloc> nodes) {
+        this.nodes = nodes;
         try {
             Process pythonProcess = new ProcessBuilder("external/venv/bin/python3", pythonScriptPath).start();
             this.stdoutReader = new BufferedReader(new InputStreamReader(pythonProcess.getInputStream()));
@@ -31,15 +30,18 @@ public class PythonNodeEstimator implements NodeEstimator {
 
     synchronized public <T extends Number> void addDataPoint(NodeWithAlloc node, String taskName,
                                                              long rchar, T targetValue) {
-        nodes.add(node);
+        if (!nodes.contains(node)) {
+            log.error("Ignore attempt to add data point for unknown node: {}", node);
+            return;
+        }
         stdinWriter.println(String.format(
                 "{\"node\": \"%s\", \"task\": \"%s\", \"rchar\": %d, \"target\": %s}",
-                node.getName(), taskName, rchar, targetValue.toString()
+                node.getName(), taskName, rchar, targetValue.toString(), nodes.size()
         ));
     }
 
     synchronized public Map<NodeWithAlloc, Double> estimations() {
-        stdinWriter.println(String.format("{\"estimate\": \"%d\"}", estimationsCounter));
+        stdinWriter.println(String.format("{\"estimate\": %d, \"id\": %d}", nodes.size(), estimationsCounter));
         estimationsCounter++;
         String line;
         try {
@@ -80,10 +82,14 @@ public class PythonNodeEstimator implements NodeEstimator {
                 }
                 try {
                     String nodeName = nodeEstimation[0];
-                    NodeWithAlloc node = nodes.stream()
+                    Optional<NodeWithAlloc> optionalNode = nodes.stream()
                             .filter(n -> n.getName().equals(nodeName))
-                            .findFirst()
-                            .orElseThrow();
+                            .findFirst();
+                    if (optionalNode.isEmpty()) {
+                        log.error("estimator process returned invalid output: {}", line);
+                        return null;
+                    }
+                    NodeWithAlloc node = optionalNode.get();
                     Double estimation = Double.parseDouble(nodeEstimation[1]);
                     estimations.put(node, estimation);
                 } catch (NumberFormatException e) {

@@ -21,6 +21,7 @@ import java.util.Map;
 
 @Slf4j
 public class OnlineTaremaScheduler extends TaremaScheduler {
+    private static final String scriptPath = "external/transitive_node_estimator.py";
     private final TraceStorage traces = new TraceStorage();
     private final NodeLabeller nodeLabeller;
     private Map<String, Integer> taskLabels = new HashMap<>();
@@ -38,7 +39,7 @@ public class OnlineTaremaScheduler extends TaremaScheduler {
                                  SchedulerConfig config,
                                  double onePointClusterScore) {
         super(execution, client, namespace, config);
-        NodeEstimator estimator = new PythonNodeEstimator("external/node-ranker.py");
+        NodeEstimator estimator = new PythonNodeEstimator(scriptPath, availableNodes);
         this.nodeLabeller = new NodeLabeller(estimator, false, onePointClusterScore);
     }
 

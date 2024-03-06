@@ -78,29 +78,35 @@ public class BenchmarkTaremaApproach implements Approach {
         writeTaskLabels = TaskLabeller.taskLabels(traceStorage, LongField.CHARACTERS_WRITTEN, writeGroupWeights);
     }
 
+    private void printNodeState(String name, NodeLabeller.LabelState state) {
+        System.out.printf("%s -> ", name);
+        for (NodeWithAlloc node : LotaruTraces.nodes) {
+            System.out.printf("%s(%d) ", node.getName(), state.labels().get(node));
+        }
+        System.out.println();
+    }
+
     @Override
     public void printNodeLabels() {
-        for (NodeWithAlloc node : LotaruTraces.nodes) {
-            System.out.printf("%s : [cpu: %d, memory: %d, read: %d, write: %d]; ",
-                    node.getName(),
-                    cpuNodeLabelState.labels().get(node),
-                    memoryNodeLabelState.labels().get(node),
-                    readNodeLabelState.labels().get(node),
-                    writeNodeLabelState.labels().get(node));
+        printNodeState("CPU  ", cpuNodeLabelState);
+        printNodeState("MEM  ", memoryNodeLabelState);
+        printNodeState("READ ", readNodeLabelState);
+        printNodeState("WRITE", writeNodeLabelState);
+    }
+
+    private void printTaskState(String name, Map<String, Integer> state) {
+        System.out.printf("%s -> ", name);
+        for (String task : traceStorage.getAbstractTaskNames()) {
+            System.out.printf("%s(%d) ", task, state.get(task));
         }
         System.out.println();
     }
 
     @Override
     public void printTaskLabels() {
-        for (String task : traceStorage.getAbstractTaskNames()) {
-            System.out.printf("%s : [cpu: %d, memory: %d, read: %d, write: %d]; ",
-                    task,
-                    cpuTaskLabels.get(task),
-                    memoryTaskLabels.get(task),
-                    readTaskLabels.get(task),
-                    writeTaskLabels.get(task));
-        }
-        System.out.println();
+        printTaskState("CPU  ", cpuTaskLabels);
+        printTaskState("MEM  ", memoryTaskLabels);
+        printTaskState("READ ", readTaskLabels);
+        printTaskState("WRITE", writeTaskLabels);
     }
 }

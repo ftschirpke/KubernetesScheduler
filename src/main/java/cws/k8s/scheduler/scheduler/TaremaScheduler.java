@@ -16,14 +16,12 @@ import java.util.*;
 
 @Slf4j
 public abstract class TaremaScheduler extends Scheduler {
-
     private final Prioritize minInputPrioritize = new MinInputPrioritize();
     private final Prioritize minRankPrioritize = new RankMinPrioritize();
     private final NodeAssign randomNodeAssign = new RandomNodeAssign();
 
-
-    protected final Set<NodeWithAlloc> availableNodes = new HashSet<>(); // nodes available to this execution (may not be the whole cluster)
-    // TODO: check if "availableNodes" is needed
+    // nodes available to this execution (may not be the whole cluster)
+    protected final Set<NodeWithAlloc> availableNodes = new HashSet<>();
 
     protected TaremaScheduler(String execution, KubernetesClient client, String namespace, SchedulerConfig config) {
         super(execution, client, namespace, config);
