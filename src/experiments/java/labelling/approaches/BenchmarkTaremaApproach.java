@@ -45,13 +45,13 @@ public class BenchmarkTaremaApproach implements Approach {
     @Getter
     String name;
 
-    public BenchmarkTaremaApproach(double onePointClusterScore) {
-        name = String.format("BenchmarkTaremaApproach(%f)", onePointClusterScore);
+    public BenchmarkTaremaApproach(double singlePointClusterScore) {
+        name = String.format("BenchmarkTaremaApproach(%f)", singlePointClusterScore);
 
-        cpuNodeLabelState = NodeLabeller.labelOnce(LotaruTraces.cpuBenchmarks, true, onePointClusterScore);
-        memoryNodeLabelState = NodeLabeller.labelOnce(LotaruTraces.memoryBenchmarks, true, onePointClusterScore);
-        readNodeLabelState = NodeLabeller.labelOnce(LotaruTraces.readBenchmarks, true, onePointClusterScore);
-        writeNodeLabelState = NodeLabeller.labelOnce(LotaruTraces.writeBenchmarks, true, onePointClusterScore);
+        cpuNodeLabelState = NodeLabeller.labelOnce(LotaruTraces.cpuBenchmarks, true, singlePointClusterScore);
+        memoryNodeLabelState = NodeLabeller.labelOnce(LotaruTraces.memoryBenchmarks, true, singlePointClusterScore);
+        readNodeLabelState = NodeLabeller.labelOnce(LotaruTraces.readBenchmarks, true, singlePointClusterScore);
+        writeNodeLabelState = NodeLabeller.labelOnce(LotaruTraces.writeBenchmarks, true, singlePointClusterScore);
 
         cpuGroupWeights = GroupWeights.forLabels(cpuNodeLabelState.maxLabel(), cpuNodeLabelState.labels());
         memoryGroupWeights = GroupWeights.forLabels(memoryNodeLabelState.maxLabel(), memoryNodeLabelState.labels());

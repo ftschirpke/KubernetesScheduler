@@ -35,7 +35,7 @@ public class SimpleBenchmarkTaremaScheduler extends TaremaScheduler {
         this(SilhouetteScore.DEFAULT_ONE_POINT_CLUSTER_SCORE, speedEstimations, execution, client, namespace, config);
     }
 
-    public SimpleBenchmarkTaremaScheduler(double onePointClusterScore,
+    public SimpleBenchmarkTaremaScheduler(double singlePointClusterScore,
                                           Map<NodeWithAlloc, Double> speedEstimations,
                                           String execution,
                                           KubernetesClient client,
@@ -43,7 +43,7 @@ public class SimpleBenchmarkTaremaScheduler extends TaremaScheduler {
                                           SchedulerConfig config) {
         super(execution, client, namespace, config);
 
-        nodeLabelState = NodeLabeller.labelOnce(speedEstimations, true, onePointClusterScore);
+        nodeLabelState = NodeLabeller.labelOnce(speedEstimations, true, singlePointClusterScore);
         groupWeights = GroupWeights.forLabels(nodeLabelState.maxLabel(), nodeLabelState.labels());
     }
 

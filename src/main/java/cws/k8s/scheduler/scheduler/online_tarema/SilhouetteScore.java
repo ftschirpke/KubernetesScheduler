@@ -12,15 +12,15 @@ public class SilhouetteScore<T extends Clusterable> extends ClusterEvaluator<T> 
 
     public static final double DEFAULT_ONE_POINT_CLUSTER_SCORE = 0.0;
 
-    private final double onePointClusterScore;
+    private final double singlePointClusterScore;
 
     public SilhouetteScore() {
         this(DEFAULT_ONE_POINT_CLUSTER_SCORE);
     }
 
-    public SilhouetteScore(double onePointClusterScore) {
+    public SilhouetteScore(double singlePointClusterScore) {
         super();
-        this.onePointClusterScore = onePointClusterScore;
+        this.singlePointClusterScore = singlePointClusterScore;
     }
 
 
@@ -29,7 +29,7 @@ public class SilhouetteScore<T extends Clusterable> extends ClusterEvaluator<T> 
                                     final T point) {
         List<T> clusterPoints = cluster.getPoints();
         if (clusterPoints.size() == 1) {
-            return onePointClusterScore;
+            return singlePointClusterScore;
         }
         double avgIntraClusterDist = clusterPoints.stream()
                 .filter(otherPoint -> otherPoint != point)

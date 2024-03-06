@@ -28,9 +28,9 @@ public class NodeLabeller {
         this(estimator, higherIsBetter, SilhouetteScore.DEFAULT_ONE_POINT_CLUSTER_SCORE);
     }
 
-    public NodeLabeller(NodeEstimator estimator, boolean higherIsBetter, double onePointClusterScore) {
+    public NodeLabeller(NodeEstimator estimator, boolean higherIsBetter, double singlePointClusterScore) {
         this.estimator = estimator;
-        this.silhouetteScore = new SilhouetteScore<>(onePointClusterScore);
+        this.silhouetteScore = new SilhouetteScore<>(singlePointClusterScore);
         this.higherIsBetter = higherIsBetter;
     }
 
@@ -43,9 +43,9 @@ public class NodeLabeller {
 
     public static LabelState labelOnce(Map<NodeWithAlloc, Double> estimations,
                                        boolean higherIsBetter,
-                                       double onePointClusterScore) {
+                                       double singlePointClusterScore) {
         ConstantEstimator estimator = new ConstantEstimator(estimations);
-        NodeLabeller labeller = new NodeLabeller(estimator, higherIsBetter, onePointClusterScore);
+        NodeLabeller labeller = new NodeLabeller(estimator, higherIsBetter, singlePointClusterScore);
         labeller.updateLabels();
         Integer maxLabel = labeller.getMaxLabel();
         Map<NodeWithAlloc, Integer> labels = labeller.getLabels();

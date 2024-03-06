@@ -108,7 +108,7 @@ public class SchedulerRestController {
         switch ( strategy.toLowerCase() ){
             case "online_tarema":
                 scheduler = new OnlineTaremaScheduler( execution, client, namespace, config );
-                // TODO: adjust the onePointClusterScore here
+                // TODO: adjust the singlePointClusterScore here
                 break;
             default: {
                 final String[] split = strategy.split( "-" );

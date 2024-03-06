@@ -53,7 +53,7 @@ public class BenchmarkTaremaScheduler extends TaremaScheduler {
                 execution, client, namespace, config);
     }
 
-    public BenchmarkTaremaScheduler(double onePointClusterScore,
+    public BenchmarkTaremaScheduler(double singlePointClusterScore,
                                     Map<NodeWithAlloc, Double> cpuSpeedEstimations,
                                     Map<NodeWithAlloc, Double> memorySpeedEstimations,
                                     Map<NodeWithAlloc, Double> readSpeedEstimations,
@@ -69,10 +69,10 @@ public class BenchmarkTaremaScheduler extends TaremaScheduler {
                 || !cpuSpeedEstimations.keySet().equals(writeSpeedEstimations.keySet())) {
             throw new IllegalArgumentException("Node estimations must be for the same nodes");
         }
-        cpuNodeLabelState = NodeLabeller.labelOnce(cpuSpeedEstimations, true, onePointClusterScore);
-        memoryNodeLabelState = NodeLabeller.labelOnce(memorySpeedEstimations, true, onePointClusterScore);
-        readNodeLabelState = NodeLabeller.labelOnce(readSpeedEstimations, true, onePointClusterScore);
-        writeNodeLabelState = NodeLabeller.labelOnce(writeSpeedEstimations, true, onePointClusterScore);
+        cpuNodeLabelState = NodeLabeller.labelOnce(cpuSpeedEstimations, true, singlePointClusterScore);
+        memoryNodeLabelState = NodeLabeller.labelOnce(memorySpeedEstimations, true, singlePointClusterScore);
+        readNodeLabelState = NodeLabeller.labelOnce(readSpeedEstimations, true, singlePointClusterScore);
+        writeNodeLabelState = NodeLabeller.labelOnce(writeSpeedEstimations, true, singlePointClusterScore);
 
         cpuGroupWeights = GroupWeights.forLabels(cpuNodeLabelState.maxLabel(), cpuNodeLabelState.labels());
         memoryGroupWeights = GroupWeights.forLabels(memoryNodeLabelState.maxLabel(), memoryNodeLabelState.labels());

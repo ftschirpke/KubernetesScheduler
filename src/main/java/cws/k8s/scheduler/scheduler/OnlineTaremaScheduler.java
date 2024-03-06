@@ -37,10 +37,10 @@ public class OnlineTaremaScheduler extends TaremaScheduler {
                                  KubernetesClient client,
                                  String namespace,
                                  SchedulerConfig config,
-                                 double onePointClusterScore) {
+                                 double singlePointClusterScore) {
         super(execution, client, namespace, config);
         NodeEstimator estimator = new PythonNodeEstimator(scriptPath, availableNodes);
-        this.nodeLabeller = new NodeLabeller(estimator, false, onePointClusterScore);
+        this.nodeLabeller = new NodeLabeller(estimator, false, singlePointClusterScore);
     }
 
     @Override

@@ -40,32 +40,32 @@ public class OnlineTaremaApproach<T extends Number & Comparable<T>> implements A
 
     public OnlineTaremaApproach(TraceField<T> target,
                                 boolean higherIsBetter,
-                                double onePointClusterScore,
+                                double singlePointClusterScore,
                                 NodeEstimator estimator,
                                 String name) {
         this.name = name;
         this.target = target;
-        this.silhouetteScore = new SilhouetteScore<>(onePointClusterScore);
+        this.silhouetteScore = new SilhouetteScore<>(singlePointClusterScore);
 
-        this.nodeLabeller = new NodeLabeller(estimator, higherIsBetter, onePointClusterScore);
+        this.nodeLabeller = new NodeLabeller(estimator, higherIsBetter, singlePointClusterScore);
     }
 
     public static <S extends Number & Comparable<S>> OnlineTaremaApproach<S> naive(TraceField<S> target,
                                                                                    boolean higherIsBetter,
-                                                                                   double onePointClusterScore) {
+                                                                                   double singlePointClusterScore) {
         NodeEstimator naiveEstimator = new PythonNodeEstimator(naiveEstimatorPath, Set.of(LotaruTraces.nodes));
         return new OnlineTaremaApproach<>(
-                target, higherIsBetter, onePointClusterScore,
+                target, higherIsBetter, singlePointClusterScore,
                 naiveEstimator, "NaiveOnlineTaremaApproach"
         );
     }
 
     public static <S extends Number & Comparable<S>> OnlineTaremaApproach<S> smart(TraceField<S> target,
                                                                                    boolean higherIsBetter,
-                                                                                   double onePointClusterScore) {
+                                                                                   double singlePointClusterScore) {
         NodeEstimator smartEstimator = new PythonNodeEstimator(smartEstimatorPath, Set.of(LotaruTraces.nodes));
         return new OnlineTaremaApproach<>(
-                target, higherIsBetter, onePointClusterScore,
+                target, higherIsBetter, singlePointClusterScore,
                 smartEstimator, "SmartOnlineTaremaApproach"
         );
     }
@@ -73,10 +73,10 @@ public class OnlineTaremaApproach<T extends Number & Comparable<T>> implements A
     public static <S extends Number & Comparable<S>> OnlineTaremaApproach<S> tarema(TraceField<S> target,
                                                                                     Map<NodeWithAlloc, Double> estimations,
                                                                                     boolean higherIsBetter,
-                                                                                    double onePointClusterScore) {
+                                                                                    double singlePointClusterScore) {
         NodeEstimator constantEstimator = new ConstantEstimator(estimations);
         return new OnlineTaremaApproach<>(
-                target, higherIsBetter, onePointClusterScore,
+                target, higherIsBetter, singlePointClusterScore,
                 constantEstimator, "SimplifiedTaremaApproach"
         );
     }

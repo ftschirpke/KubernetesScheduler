@@ -42,18 +42,18 @@ public class LabelConvergenceExperiment {
         }
 
         boolean all = false;
-        double onePointClusterScore = 0.8;
+        double singlePointClusterScore = 0.8;
         TraceField<Long> target = LongField.REALTIME;
         boolean higherIsBetter = false;
 
         if (all) {
             for (String experimentName : LotaruTraces.experiments) {
                 for (String label : LotaruTraces.labels) {
-                    experiment(args[0], experimentName, label, target, higherIsBetter, onePointClusterScore);
+                    experiment(args[0], experimentName, label, target, higherIsBetter, singlePointClusterScore);
                 }
             }
         } else {
-            experiment(args[0], args[1], args[2], target, higherIsBetter, onePointClusterScore);
+            experiment(args[0], args[1], args[2], target, higherIsBetter, singlePointClusterScore);
         }
     }
 
@@ -62,10 +62,10 @@ public class LabelConvergenceExperiment {
                                                                      String label,
                                                                      TraceField<T> target,
                                                                      boolean higherIsBetter,
-                                                                     double onePointClusterScore) {
+                                                                     double singlePointClusterScore) {
         LabelConvergenceExperiment experiment = new LabelConvergenceExperiment(experimentName, label);
         experiment.initializeTraces(lotaruTracesDir);
-        experiment.setApproaches(target, higherIsBetter, onePointClusterScore);
+        experiment.setApproaches(target, higherIsBetter, singlePointClusterScore);
         experiment.run();
     }
 
@@ -86,11 +86,11 @@ public class LabelConvergenceExperiment {
         System.out.println("Finished reading traces.");
     }
 
-    <T extends Number & Comparable<T>> void setApproaches(TraceField<T> target, boolean higherIsBetter, double onePointClusterScore) {
-        approaches.add(new BenchmarkTaremaApproach(onePointClusterScore));
-        approaches.add(OnlineTaremaApproach.naive(target, higherIsBetter, onePointClusterScore));
-        approaches.add(OnlineTaremaApproach.smart(target, higherIsBetter, onePointClusterScore));
-        approaches.add(OnlineTaremaApproach.tarema(target, LotaruTraces.cpuBenchmarks, true, onePointClusterScore));
+    <T extends Number & Comparable<T>> void setApproaches(TraceField<T> target, boolean higherIsBetter, double singlePointClusterScore) {
+        approaches.add(new BenchmarkTaremaApproach(singlePointClusterScore));
+        approaches.add(OnlineTaremaApproach.naive(target, higherIsBetter, singlePointClusterScore));
+        approaches.add(OnlineTaremaApproach.smart(target, higherIsBetter, singlePointClusterScore));
+        approaches.add(OnlineTaremaApproach.tarema(target, LotaruTraces.cpuBenchmarks, true, singlePointClusterScore));
         System.out.println("Finished adding approaches.");
     }
 
