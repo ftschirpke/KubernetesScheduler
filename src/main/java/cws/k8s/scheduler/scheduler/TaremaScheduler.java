@@ -30,6 +30,8 @@ public abstract class TaremaScheduler extends Scheduler {
 
     abstract int nodeTaskLabelDifference(NodeWithAlloc node, String taskName);
 
+    abstract int nodeSpeed(NodeWithAlloc node);
+
     abstract boolean taskIsKnown(String taskName);
 
     abstract boolean nodeLabelsReady();
@@ -71,7 +73,7 @@ public abstract class TaremaScheduler extends Scheduler {
             String abstractTaskName = task.getConfig().getTask();
             int triedOnNodes = 0;
             NodeWithAlloc bestNode = null;
-            if (taskIsKnown(abstractTaskName)) {
+            if (!taskIsKnown(abstractTaskName)) {
                 // prioritize nodes with the most available resources (similar to FairAssign)
                 Double highestScore = null;
                 for (Map.Entry<NodeWithAlloc, Requirements> e : availableByNode.entrySet()) {
@@ -92,8 +94,9 @@ public abstract class TaremaScheduler extends Scheduler {
             } else { // taskLabels != null
                 // prioritize nodes with the least label difference (Tarema approach)
                 // and most available resources as a tiebreaker
-                Integer lowestLabelDifference = null;
-                Double highestAvailabilityScore = null;
+                Integer lowestLabelDiff = null;
+                int highestSpeed = -1;
+                double highestScore = 0.0;
                 for (Map.Entry<NodeWithAlloc, Requirements> e : availableByNode.entrySet()) {
                     NodeWithAlloc node = e.getKey();
                     Requirements requirements = e.getValue();
@@ -102,12 +105,16 @@ public abstract class TaremaScheduler extends Scheduler {
                     }
                     if (canSchedulePodOnNode(requirements, pod, node)) {
                         triedOnNodes++;
-                        int labelDifference = nodeTaskLabelDifference(node, abstractTaskName);
+                        final int labelDifference = nodeTaskLabelDifference(node, abstractTaskName);
+                        final int speed = nodeSpeed(node);
                         final double score = highestResourceAvailabilityScore(task, node, requirements);
-                        if (lowestLabelDifference == null || labelDifference < lowestLabelDifference
-                                || (labelDifference == lowestLabelDifference && score > highestAvailabilityScore)) {
-                            lowestLabelDifference = labelDifference;
-                            highestAvailabilityScore = score;
+                        if (lowestLabelDiff == null
+                                || labelDifference < lowestLabelDiff
+                                || (labelDifference == lowestLabelDiff && speed > highestSpeed)
+                                || (labelDifference == lowestLabelDiff && speed == highestSpeed && score > highestScore)) {
+                            lowestLabelDiff = labelDifference;
+                            highestSpeed = speed;
+                            highestScore = score;
                             bestNode = node;
                         }
                     }

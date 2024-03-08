@@ -4,6 +4,8 @@ import cws.k8s.scheduler.model.NodeWithAlloc;
 import cws.k8s.scheduler.model.TaskConfig;
 import cws.k8s.scheduler.scheduler.nextflow_trace.TraceRecord;
 
+import java.util.List;
+
 public interface Approach {
 
     String getName();
@@ -13,4 +15,6 @@ public interface Approach {
     void recalculate();
     void printNodeLabels();
     void printTaskLabels();
+
+    void writeState(String experimentDir, List<String> taskNames);
 }

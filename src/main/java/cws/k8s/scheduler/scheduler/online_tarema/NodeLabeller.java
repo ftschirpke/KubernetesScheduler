@@ -19,7 +19,7 @@ public class NodeLabeller {
     @Getter
     private final Map<NodeWithAlloc, Integer> labels = new HashMap<>();
     @Getter // TODO: remove getter (was added for testing and label experiments)
-    private Map<NodeWithAlloc, Double> estimations = null;
+    private Map<NodeWithAlloc, Double> estimations = new HashMap<>();
     private final SilhouetteScore<PointWithName<NodeWithAlloc>> silhouetteScore;
     @Getter
     private final NodeEstimator estimator;
@@ -96,7 +96,7 @@ public class NodeLabeller {
     private boolean retrieveNewEstimations() {
         Map<NodeWithAlloc, Double> newEstimations = estimator.estimations();
         if (newEstimations == null) {
-            if (estimations != null) {
+            if (!estimations.isEmpty()) {
                 log.error("Estimator did not return new estimations; using old ones");
             }
             return false;

@@ -2,18 +2,20 @@ package labelling.approaches;
 
 import cws.k8s.scheduler.model.NodeWithAlloc;
 import cws.k8s.scheduler.model.TaskConfig;
-import cws.k8s.scheduler.scheduler.online_tarema.GroupWeights;
-import cws.k8s.scheduler.scheduler.online_tarema.NodeLabeller;
-import cws.k8s.scheduler.scheduler.online_tarema.TaskLabeller;
 import cws.k8s.scheduler.scheduler.nextflow_trace.FloatField;
 import cws.k8s.scheduler.scheduler.nextflow_trace.LongField;
 import cws.k8s.scheduler.scheduler.nextflow_trace.TraceRecord;
 import cws.k8s.scheduler.scheduler.nextflow_trace.TraceStorage;
+import cws.k8s.scheduler.scheduler.online_tarema.GroupWeights;
+import cws.k8s.scheduler.scheduler.online_tarema.NodeLabeller;
+import cws.k8s.scheduler.scheduler.online_tarema.TaskLabeller;
 import labelling.LotaruTraces;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 
+import java.io.*;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 /*
@@ -44,6 +46,7 @@ public class BenchmarkTaremaApproach implements Approach {
 
     @Getter
     String name;
+    static String shortName = "bench";
 
     public BenchmarkTaremaApproach(double singlePointClusterScore) {
         name = String.format("BenchmarkTaremaApproach(%f)", singlePointClusterScore);
@@ -108,5 +111,95 @@ public class BenchmarkTaremaApproach implements Approach {
         printTaskState("MEM  ", memoryTaskLabels);
         printTaskState("READ ", readTaskLabels);
         printTaskState("WRITE", writeTaskLabels);
+    }
+
+    @Override
+    public void writeState(String experimentDir, List<String> taskNames) {
+        File dir = new File(String.format("%s/%s", experimentDir, shortName));
+        if (!dir.exists()) {
+            boolean success = dir.mkdirs();
+            if (!success) {
+                log.error("Could not create directory {}", dir);
+                System.exit(1);
+            }
+        }
+        File nodeState = new File(String.format("%s/%s/constant_node_state.txt", experimentDir, shortName));
+        boolean newlyCreated;
+        try {
+            newlyCreated = nodeState.createNewFile();
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+        if (newlyCreated) {
+            try (PrintWriter writer = new PrintWriter(nodeState)) {
+                writer.printf("CPU:   %d -> ", cpuNodeLabelState.maxLabel());
+                for (NodeWithAlloc node : LotaruTraces.nodes) {
+                    writer.printf("%s(%d) ", node.getName(), cpuNodeLabelState.labels().get(node));
+                }
+                writer.println();
+                writer.printf("MEM:   %d -> ", cpuNodeLabelState.maxLabel());
+                for (NodeWithAlloc node : LotaruTraces.nodes) {
+                    writer.printf("%s(%d) ", node.getName(), cpuNodeLabelState.labels().get(node));
+                }
+                writer.println();
+                writer.printf("READ:  %d -> ", cpuNodeLabelState.maxLabel());
+                for (NodeWithAlloc node : LotaruTraces.nodes) {
+                    writer.printf("%s(%d) ", node.getName(), cpuNodeLabelState.labels().get(node));
+                }
+                writer.println();
+                writer.printf("WRITE: %d -> ", cpuNodeLabelState.maxLabel());
+                for (NodeWithAlloc node : LotaruTraces.nodes) {
+                    writer.printf("%s(%d) ", node.getName(), cpuNodeLabelState.labels().get(node));
+                }
+                writer.println();
+            } catch (FileNotFoundException e) {
+                log.error("File {} does not exist", nodeState);
+                System.exit(1);
+            }
+        }
+
+        File taskState = new File(String.format("%s/%s/cpu_task_labels.csv", experimentDir, shortName));
+        writeTaskLabelState(nodeState, taskState, cpuTaskLabels, taskNames);
+
+        File memTaskState = new File(String.format("%s/%s/mem_task_labels.csv", experimentDir, shortName));
+        writeTaskLabelState(nodeState, memTaskState, memoryTaskLabels, taskNames);
+
+        File readTaskState = new File(String.format("%s/%s/read_task_labels.csv", experimentDir, shortName));
+        writeTaskLabelState(nodeState, readTaskState, readTaskLabels, taskNames);
+
+        File writeTaskState = new File(String.format("%s/%s/write_task_labels.csv", experimentDir, shortName));
+        writeTaskLabelState(nodeState, writeTaskState, writeTaskLabels, taskNames);
+    }
+
+    private void writeTaskLabelState(File nodeState,
+                                     File writeTaskState,
+                                     Map<String, Integer> writeTaskLabels,
+                                     List<String> taskNames) {
+        boolean newlyCreated;
+        try {
+            newlyCreated = writeTaskState.createNewFile();
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+        try (PrintWriter writer = new PrintWriter(new FileOutputStream(writeTaskState, true))) {
+            if (newlyCreated) {
+                for (String task : taskNames) {
+                    writer.printf("%s,", task);
+                }
+                writer.println();
+            }
+            for (String task : taskNames) {
+                Integer label = writeTaskLabels.get(task);
+                if (label == null) {
+                    writer.printf("nan,");
+                } else {
+                    writer.printf("%d,", label);
+                }
+            }
+            writer.println();
+        } catch (FileNotFoundException e) {
+            log.error("File {} does not exist", nodeState);
+            System.exit(1);
+        }
     }
 }

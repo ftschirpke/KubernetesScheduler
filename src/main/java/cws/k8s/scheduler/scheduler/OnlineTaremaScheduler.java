@@ -53,6 +53,14 @@ public class OnlineTaremaScheduler extends TaremaScheduler {
     }
 
     @Override
+    int nodeSpeed(NodeWithAlloc node) {
+        if (!nodeLabelsReady()) {
+            return 0;
+        }
+        return nodeLabeller.getLabels().get(node);
+    }
+
+    @Override
     boolean taskIsKnown(String taskName) {
         return taskLabels.containsKey(taskName);
     }
@@ -78,23 +86,22 @@ public class OnlineTaremaScheduler extends TaremaScheduler {
         log.info("Online Tarema Scheduler: Pod {} trace saved.", pod.getName());
 
         NodeWithAlloc node = task.getNode();
-        boolean nodeLabelsChanged = recalculateNodeLabelsWithNewSample(node, task.getConfig().getTask(), traceId);
-        if (nodeLabelsChanged && nodeLabelsReady()) {
+        recalculateNodeLabelsWithNewSample(node, task.getConfig().getTask(), traceId);
+        if (nodeLabelsReady()) {
             recalculateTaskLabels();
         }
     }
 
-    private boolean recalculateNodeLabelsWithNewSample(NodeWithAlloc node, String taskName, int traceId) {
+    private void recalculateNodeLabelsWithNewSample(NodeWithAlloc node, String taskName, int traceId) {
         long startTime = System.currentTimeMillis();
 
         long charactersRead = traces.getForId(traceId, LongField.CHARACTERS_READ);
         long realtime = traces.getForId(traceId, LongField.REALTIME);
         nodeLabeller.addDataPoint(node, taskName, charactersRead, realtime);
-        boolean labelsChanged = nodeLabeller.updateLabels();
+        nodeLabeller.updateLabels();
 
         long endTime = System.currentTimeMillis();
         log.info("Online Tarema Scheduler: Node labels recalculated in {} ms.", endTime - startTime);
-        return labelsChanged;
     }
 
     private void recalculateTaskLabels() {

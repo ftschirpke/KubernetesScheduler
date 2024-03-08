@@ -74,6 +74,14 @@ public class SimpleBenchmarkTaremaScheduler extends TaremaScheduler {
     }
 
     @Override
+    int nodeSpeed(NodeWithAlloc node) {
+        if (!nodeLabelsReady()) {
+            return 0;
+        }
+        return nodeLabelState.labels().get(node);
+    }
+
+    @Override
     boolean taskIsKnown(String taskName) {
         return taskLabels.containsKey(taskName);
     }

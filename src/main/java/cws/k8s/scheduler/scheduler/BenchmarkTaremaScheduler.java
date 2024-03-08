@@ -116,6 +116,17 @@ public class BenchmarkTaremaScheduler extends TaremaScheduler {
     }
 
     @Override
+    int nodeSpeed(NodeWithAlloc node) {
+        if (!nodeLabelsReady()) {
+            return 0;
+        }
+        return cpuNodeLabelState.labels().get(node)
+                + memoryNodeLabelState.labels().get(node)
+                + readNodeLabelState.labels().get(node)
+                + writeNodeLabelState.labels().get(node);
+    }
+
+    @Override
     boolean taskIsKnown(String taskName) {
         return cpuTaskLabels.containsKey(taskName)
                 && memoryTaskLabels.containsKey(taskName)
