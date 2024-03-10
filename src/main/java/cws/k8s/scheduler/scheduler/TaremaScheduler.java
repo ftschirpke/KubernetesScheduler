@@ -36,6 +36,23 @@ public abstract class TaremaScheduler extends Scheduler {
 
     abstract boolean nodeLabelsReady();
 
+    // find all nodes that we can use to schedule the tasks (and thus need labels for)
+    private void findAvailableNodes(final List<Task> unscheduledTasks, final Map<NodeWithAlloc, Requirements> availableByNode) {
+        for (Task unscheduledTask : unscheduledTasks) {
+            final PodWithAge pod = unscheduledTask.getPod();
+            for (Map.Entry<NodeWithAlloc, Requirements> e : availableByNode.entrySet()) {
+                NodeWithAlloc node = e.getKey();
+                Requirements requirements = e.getValue();
+                if (canSchedulePodOnNode(requirements, pod, node)) {
+                    availableNodes.add(node.getName());
+                    if (availableNodes.size() >= availableByNode.size()) {
+                        return;
+                    }
+                }
+            }
+        }
+    }
+
     @Override
     public ScheduleObject getTaskNodeAlignment(final List<Task> unscheduledTasks, final Map<NodeWithAlloc, Requirements> availableByNode) {
         long start = System.currentTimeMillis();
@@ -48,6 +65,7 @@ public abstract class TaremaScheduler extends Scheduler {
 
         List<NodeTaskAlignment> alignment;
         if (!nodeLabelsReady()) {
+            findAvailableNodes(unscheduledTasks, availableByNode);
             minInputPrioritize.sortTasks(unscheduledTasks);
             alignment = randomNodeAssign.getTaskNodeAlignment(unscheduledTasks, availableByNode);
         } else {
