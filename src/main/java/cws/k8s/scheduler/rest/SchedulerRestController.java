@@ -1,19 +1,20 @@
 package cws.k8s.scheduler.rest;
 
+import cws.k8s.scheduler.client.KubernetesClient;
 import cws.k8s.scheduler.dag.DAG;
 import cws.k8s.scheduler.dag.InputEdge;
-import cws.k8s.scheduler.client.KubernetesClient;
 import cws.k8s.scheduler.dag.Vertex;
 import cws.k8s.scheduler.model.SchedulerConfig;
 import cws.k8s.scheduler.model.TaskConfig;
+import cws.k8s.scheduler.scheduler.BenchmarkTaremaScheduler;
 import cws.k8s.scheduler.scheduler.OnlineTaremaScheduler;
 import cws.k8s.scheduler.scheduler.PrioritizeAssignScheduler;
 import cws.k8s.scheduler.scheduler.Scheduler;
-import cws.k8s.scheduler.scheduler.prioritize.*;
 import cws.k8s.scheduler.scheduler.nodeassign.FairAssign;
 import cws.k8s.scheduler.scheduler.nodeassign.NodeAssign;
 import cws.k8s.scheduler.scheduler.nodeassign.RandomNodeAssign;
 import cws.k8s.scheduler.scheduler.nodeassign.RoundRobinAssign;
+import cws.k8s.scheduler.scheduler.prioritize.*;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
@@ -107,8 +108,28 @@ public class SchedulerRestController {
 
         switch ( strategy.toLowerCase() ){
             case "online_tarema":
-                scheduler = new OnlineTaremaScheduler( execution, client, namespace, config );
-                // TODO: adjust the singlePointClusterScore here
+                scheduler = new OnlineTaremaScheduler(execution, client, namespace, config, 0.8);
+                break;
+            case "benchmark_tarema":
+                Map<String, Double> cpuEstimations = Map.of(
+                        "hu-worker-c29", 559.98, "hu-worker-c40", 790.35,
+                        "hu-worker-c42", 954.61, "hu-worker-c43", 954.95
+                );
+                Map<String, Double> memEstimations = Map.of(
+                        "hu-worker-c29", 12527.77, "hu-worker-c40", 17696.05,
+                        "hu-worker-c42", 21442.84, "hu-worker-c43", 21432.30
+                );
+                Map<String, Double> seqReadEstimations = Map.of(
+                        "hu-worker-c29", 534.0, "hu-worker-c40", 673.0,
+                        "hu-worker-c42", 687.0, "hu-worker-c43", 693.0
+                );
+                Map<String, Double> seqWriteEstimations = Map.of(
+                        "hu-worker-c29", 533.0, "hu-worker-c40", 673.0,
+                        "hu-worker-c42", 687.0, "hu-worker-c43", 692.0
+                );
+                scheduler = new BenchmarkTaremaScheduler(execution, client, namespace, config,
+                        cpuEstimations, memEstimations, seqReadEstimations, seqWriteEstimations,
+                        0.8);
                 break;
             default: {
                 final String[] split = strategy.split( "-" );
