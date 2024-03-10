@@ -14,17 +14,22 @@ import org.apache.commons.lang3.ArrayUtils;
 import java.io.File;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.stream.Stream;
 
 @Slf4j
 public class LabelConvergenceExperiment {
     static String defaultPath = "../Lotaru-traces/traces";
+    static boolean includeLocal = true;
+
     String experimentName;
     String experimentLabel;
     LotaruTraces lotaruTraces = new LotaruTraces();
     List<Approach> approaches = new ArrayList<>();
     String experimentDir;
+    final boolean writeState;
 
     public static void main(String[] args) {
         if (args.length != 3) {
@@ -46,15 +51,19 @@ public class LabelConvergenceExperiment {
         TraceField<Long> target = LongField.REALTIME;
         boolean higherIsBetter = false;
 
+        boolean writeState = true;
+
+        SimpleDateFormat formatter = new SimpleDateFormat("yyyyMMdd-HHmmss");
+        String timeString = formatter.format(System.currentTimeMillis());
+
         for (double singlePointClusterScore : scores) {
-            SimpleDateFormat formatter = new SimpleDateFormat("yyyyMMdd-HHmmss");
-            String timeString = formatter.format(System.currentTimeMillis());
-            timeString = String.format("%d-%s", (int) (singlePointClusterScore * 100.0), timeString);
+            String localStr = includeLocal ? "local" : "nolocal";
+            String fullString = String.format("%s/%s-%d", timeString, localStr, (int) (singlePointClusterScore * 100.0));
 
             for (String experimentName : LotaruTraces.experiments) {
                 for (String label : LotaruTraces.labels) {
                     experiment(args[0], experimentName, label, target, higherIsBetter, singlePointClusterScore,
-                            timeString);
+                            fullString, writeState);
                 }
             }
         }
@@ -66,17 +75,19 @@ public class LabelConvergenceExperiment {
                                                                      TraceField<T> target,
                                                                      boolean higherIsBetter,
                                                                      double singlePointClusterScore,
-                                                                     String timeString) {
-        LabelConvergenceExperiment experiment = new LabelConvergenceExperiment(experimentName, label, timeString);
+                                                                     String dirString,
+                                                                     boolean writeState) {
+        LabelConvergenceExperiment experiment = new LabelConvergenceExperiment(experimentName, label, dirString, writeState);
         experiment.initializeTraces(lotaruTracesDir);
         experiment.setApproaches(target, higherIsBetter, singlePointClusterScore);
         experiment.run();
     }
 
-    LabelConvergenceExperiment(String experimentName, String experimentLabel, String timeString) {
+    LabelConvergenceExperiment(String experimentName, String experimentLabel, String dirString, boolean writeState) {
         this.experimentName = experimentName;
         this.experimentLabel = experimentLabel;
-        this.experimentDir = String.format("../label-experiments/results/%s/%s/%s", timeString, experimentName, experimentLabel);
+        this.experimentDir = String.format("../label-experiments/results/%s/%s/%s", dirString, experimentName, experimentLabel);
+        this.writeState = writeState;
     }
 
     void initializeTraces(String lotaruTracesDir) {
@@ -90,21 +101,32 @@ public class LabelConvergenceExperiment {
         }
     }
 
-    <T extends Number & Comparable<T>> void setApproaches(TraceField<T> target, boolean higherIsBetter, double singlePointClusterScore) {
+    <T extends Number & Comparable<T>> void setApproaches(TraceField<T> target,
+                                                          boolean higherIsBetter,
+                                                          double singlePointClusterScore) {
+        Set<NodeWithAlloc> nodes;
+        if (includeLocal) {
+            nodes = Set.of(LotaruTraces.getNodesIncludingLocal());
+        } else {
+            nodes = new HashSet<>(LotaruTraces.getNodesWithoutLocal());
+        }
+
         approaches.add(new BenchmarkTaremaApproach(singlePointClusterScore));
-        approaches.add(OnlineTaremaApproach.naive(target, higherIsBetter, singlePointClusterScore));
-        approaches.add(OnlineTaremaApproach.transitive(target, higherIsBetter, singlePointClusterScore));
+        approaches.add(OnlineTaremaApproach.naive(target, higherIsBetter, singlePointClusterScore, nodes));
+        approaches.add(OnlineTaremaApproach.transitive(target, higherIsBetter, singlePointClusterScore, nodes));
         approaches.add(OnlineTaremaApproach.tarema(target, LotaruTraces.cpuBenchmarks, true, singlePointClusterScore));
     }
 
     void run() {
-        Stream<String[]> lines = lotaruTraces.allLinesByTask();
-        File experimentDirectory = new File(experimentDir);
-        if (!experimentDirectory.exists()) {
-            boolean success = experimentDirectory.mkdirs();
-            if (!success) {
-                log.error("Could not create directory {}", experimentDirectory);
-                System.exit(1);
+        Stream<String[]> lines = lotaruTraces.allLinesFairly(includeLocal);
+        if (writeState) {
+            File experimentDirectory = new File(experimentDir);
+            if (!experimentDirectory.exists()) {
+                boolean success = experimentDirectory.mkdirs();
+                if (!success) {
+                    log.error("Could not create directory {}", experimentDirectory);
+                    System.exit(1);
+                }
             }
         }
         lines.forEachOrdered(line -> {
@@ -115,7 +137,9 @@ public class LabelConvergenceExperiment {
             for (Approach approach : approaches) {
                 approach.onTaskTermination(trace, config, node);
                 approach.recalculate();
-                approach.writeState(experimentDir, lotaruTraces.taskNames);
+                if (writeState) {
+                    approach.writeState(experimentDir, lotaruTraces.taskNames);
+                }
             }
         });
         log.info("Finished running approaches.");

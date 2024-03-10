@@ -83,7 +83,7 @@ public class BenchmarkTaremaApproach implements Approach {
 
     private void printNodeState(String name, NodeLabeller.LabelState state) {
         System.out.printf("%s -> ", name);
-        for (NodeWithAlloc node : LotaruTraces.nodes) {
+        for (NodeWithAlloc node : LotaruTraces.getNodesIncludingLocal()) {
             System.out.printf("%s(%d) ", node.getName(), state.labels().get(node));
         }
         System.out.println();
@@ -133,22 +133,22 @@ public class BenchmarkTaremaApproach implements Approach {
         if (newlyCreated) {
             try (PrintWriter writer = new PrintWriter(nodeState)) {
                 writer.printf("CPU:   %d -> ", cpuNodeLabelState.maxLabel());
-                for (NodeWithAlloc node : LotaruTraces.nodes) {
+                for (NodeWithAlloc node : LotaruTraces.getNodesIncludingLocal()) {
                     writer.printf("%s(%d) ", node.getName(), cpuNodeLabelState.labels().get(node));
                 }
                 writer.println();
                 writer.printf("MEM:   %d -> ", cpuNodeLabelState.maxLabel());
-                for (NodeWithAlloc node : LotaruTraces.nodes) {
+                for (NodeWithAlloc node : LotaruTraces.getNodesIncludingLocal()) {
                     writer.printf("%s(%d) ", node.getName(), cpuNodeLabelState.labels().get(node));
                 }
                 writer.println();
                 writer.printf("READ:  %d -> ", cpuNodeLabelState.maxLabel());
-                for (NodeWithAlloc node : LotaruTraces.nodes) {
+                for (NodeWithAlloc node : LotaruTraces.getNodesIncludingLocal()) {
                     writer.printf("%s(%d) ", node.getName(), cpuNodeLabelState.labels().get(node));
                 }
                 writer.println();
                 writer.printf("WRITE: %d -> ", cpuNodeLabelState.maxLabel());
-                for (NodeWithAlloc node : LotaruTraces.nodes) {
+                for (NodeWithAlloc node : LotaruTraces.getNodesIncludingLocal()) {
                     writer.printf("%s(%d) ", node.getName(), cpuNodeLabelState.labels().get(node));
                 }
                 writer.println();
