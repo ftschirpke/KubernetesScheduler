@@ -205,6 +205,7 @@ class TransitiveNodeEstimator(NodeEstimator):
         if ratios is None:
             return None
         ratio_sums = np.sum(ratios, axis=1) / self.node_count()
+        ratio_sums = np.exp(ratio_sums)
         return dict(zip(self.nodes, ratio_sums))
 
 

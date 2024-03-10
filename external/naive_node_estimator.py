@@ -83,6 +83,7 @@ class NaiveNodeEstimator(NodeEstimator):
                 ln_ratios[j][i] = -ratio
 
         ratio_sums = np.sum(ln_ratios, axis=1) / self.node_count()
+        ratio_sums = np.exp(ratio_sums)
         return dict(zip(self.nodes, ratio_sums))
 
 
