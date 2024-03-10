@@ -20,9 +20,10 @@ RUN external/venv/bin/python3 -m pip install --no-cache-dir --upgrade pip setupt
 # python requirements
 COPY external/requirements.txt external/requirements.txt
 RUN external/venv/bin/python3 -m pip install --no-cache-dir -r external/requirements.txt
-# python bayes script
-COPY external/bayes.py external/bayes.py
-COPY external/kmeans.py external/kmeans.py
+# python node estimator scripts
+COPY external/node_estimator.py external/node_estimator.py
+COPY external/naive_node_estimator.py external/naive_node_estimator.py
+COPY external/transitive_node_estimator.py external/transitive_node_estimator.py
 # copy application jar
 COPY --from=build /build/target/cws-k8s-scheduler*.jar cws-k8s-scheduler.jar
 
