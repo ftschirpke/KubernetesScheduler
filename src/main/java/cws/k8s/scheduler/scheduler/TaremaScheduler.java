@@ -47,7 +47,7 @@ public abstract class TaremaScheduler extends Scheduler {
         }
 
         List<NodeTaskAlignment> alignment;
-        if (nodeLabelsReady()) {
+        if (!nodeLabelsReady()) {
             minInputPrioritize.sortTasks(unscheduledTasks);
             alignment = randomNodeAssign.getTaskNodeAlignment(unscheduledTasks, availableByNode);
         } else {
