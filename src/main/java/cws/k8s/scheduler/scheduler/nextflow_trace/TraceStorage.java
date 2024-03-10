@@ -1,6 +1,5 @@
 package cws.k8s.scheduler.scheduler.nextflow_trace;
 
-import cws.k8s.scheduler.model.NodeWithAlloc;
 import cws.k8s.scheduler.model.Task;
 import cws.k8s.scheduler.model.TaskConfig;
 import lombok.Getter;
@@ -13,7 +12,7 @@ import java.util.stream.Stream;
 public class TraceStorage {
 
     @Getter
-    private final ArrayList<NodeWithAlloc> nodes = new ArrayList<>();
+    private final ArrayList<String> nodes = new ArrayList<>();
     @Getter
     private final ArrayList<String> abstractTaskNames = new ArrayList<>();
 
@@ -40,10 +39,10 @@ public class TraceStorage {
     final ArrayList<Long> writeBytesValues = new ArrayList<>();
     final ArrayList<Long> realtimeValues = new ArrayList<>();
 
-    private int getNodeIndex(NodeWithAlloc node) {
-        int index = nodes.indexOf(node);
+    private int getNodeIndex(String nodeName) {
+        int index = nodes.indexOf(nodeName);
         if (index == -1) {
-            nodes.add(node);
+            nodes.add(nodeName);
             index = nodes.size() - 1;
         }
         return index;
@@ -70,12 +69,12 @@ public class TraceStorage {
         TraceRecord trace = TraceRecord.from_task(task);
         int taskId = task.getId();
         TaskConfig config = task.getConfig();
-        NodeWithAlloc node = task.getNode();
-        return saveTrace(trace, taskId, config, node);
+        String nodeName = task.getNode().getName();
+        return saveTrace(trace, taskId, config, nodeName);
     }
 
-    public int saveTrace(TraceRecord trace, int taskId, TaskConfig config, NodeWithAlloc node) {
-        int nodeIndex = getNodeIndex(node);
+    public int saveTrace(TraceRecord trace, int taskId, TaskConfig config, String nodeName) {
+        int nodeIndex = getNodeIndex(nodeName);
         nodeIndices.add(nodeIndex);
         String abstractTaskName = config.getTask();
         int abstractTaskIndex = getAbstractTaskIndex(abstractTaskName);
@@ -113,16 +112,16 @@ public class TraceStorage {
         return field.getValuesFromStorage(this);
     }
 
-    public Stream<Integer> getTaskIdsForNode(NodeWithAlloc node) {
-        return getByIndex(getNodeIndex(node), nodeIndices, taskIds);
+    public Stream<Integer> getTaskIdsForNode(String nodeName) {
+        return getByIndex(getNodeIndex(nodeName), nodeIndices, taskIds);
     }
 
     public Stream<Integer> getTaskIdsForAbstractTask(String abstractTaskName) {
         return getByIndex(getAbstractTaskIndex(abstractTaskName), abstractTaskIndices, taskIds);
     }
 
-    public <T> Stream<T> getForNode(NodeWithAlloc node, TraceField<T> field) {
-        return getByIndex(getNodeIndex(node), nodeIndices, field.getValuesFromStorage(this));
+    public <T> Stream<T> getForNode(String nodeName, TraceField<T> field) {
+        return getByIndex(getNodeIndex(nodeName), nodeIndices, field.getValuesFromStorage(this));
     }
 
     public <T> T getForId(int id, TraceField<T> field) {

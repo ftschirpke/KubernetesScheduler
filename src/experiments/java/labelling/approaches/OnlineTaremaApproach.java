@@ -1,6 +1,5 @@
 package labelling.approaches;
 
-import cws.k8s.scheduler.model.NodeWithAlloc;
 import cws.k8s.scheduler.model.TaskConfig;
 import cws.k8s.scheduler.scheduler.nextflow_trace.LongField;
 import cws.k8s.scheduler.scheduler.nextflow_trace.TraceField;
@@ -21,6 +20,7 @@ import org.apache.commons.math3.ml.clustering.DoublePoint;
 
 import java.io.*;
 import java.util.*;
+import java.util.function.Function;
 import java.util.stream.IntStream;
 
 /*
@@ -37,6 +37,7 @@ public class OnlineTaremaApproach<T extends Number & Comparable<T>> implements A
     String name;
     String shortName;
     private final TraceField<T> target;
+    private final Function<String, Float> nodeWeight;
     private final SilhouetteScore<DoublePoint> silhouetteScore;
 
     static String naiveEstimatorPath = "external/naive_node_estimator.py";
@@ -44,6 +45,7 @@ public class OnlineTaremaApproach<T extends Number & Comparable<T>> implements A
 
 
     public OnlineTaremaApproach(TraceField<T> target,
+                                Function<String, Float> nodeWeight,
                                 boolean higherIsBetter,
                                 double singlePointClusterScore,
                                 NodeEstimator estimator,
@@ -57,52 +59,56 @@ public class OnlineTaremaApproach<T extends Number & Comparable<T>> implements A
         this.shortName = name.substring(0, secondUppercaseLetter).toLowerCase();
 
         this.target = target;
+        this.nodeWeight = nodeWeight;
         this.silhouetteScore = new SilhouetteScore<>(singlePointClusterScore);
 
         this.nodeLabeller = new NodeLabeller(estimator, higherIsBetter, singlePointClusterScore);
     }
 
     public static <S extends Number & Comparable<S>> OnlineTaremaApproach<S> naive(TraceField<S> target,
+                                                                                   Function<String, Float> nodeWeight,
                                                                                    boolean higherIsBetter,
                                                                                    double singlePointClusterScore,
-                                                                                   Set<NodeWithAlloc> nodes) {
+                                                                                   Set<String> nodes) {
         NodeEstimator naiveEstimator = new PythonNodeEstimator(naiveEstimatorPath, nodes);
         return new OnlineTaremaApproach<>(
-                target, higherIsBetter, singlePointClusterScore,
+                target, nodeWeight, higherIsBetter, singlePointClusterScore,
                 naiveEstimator, "NaiveOnlineTarema"
         );
     }
 
     public static <S extends Number & Comparable<S>> OnlineTaremaApproach<S> transitive(TraceField<S> target,
+                                                                                        Function<String, Float> nodeWeight,
                                                                                         boolean higherIsBetter,
                                                                                         double singlePointClusterScore,
-                                                                                        Set<NodeWithAlloc> nodes) {
+                                                                                        Set<String> nodes) {
         NodeEstimator transitiveEstimator = new PythonNodeEstimator(smartEstimatorPath, nodes);
         return new OnlineTaremaApproach<>(
-                target, higherIsBetter, singlePointClusterScore,
+                target, nodeWeight, higherIsBetter, singlePointClusterScore,
                 transitiveEstimator, "TransitiveOnlineTarema"
         );
     }
 
     public static <S extends Number & Comparable<S>> OnlineTaremaApproach<S> tarema(TraceField<S> target,
-                                                                                    Map<NodeWithAlloc, Double> estimations,
+                                                                                    Function<String, Float> nodeWeight,
+                                                                                    Map<String, Double> estimations,
                                                                                     boolean higherIsBetter,
                                                                                     double singlePointClusterScore) {
         NodeEstimator constantEstimator = new ConstantEstimator(estimations);
         return new OnlineTaremaApproach<>(
-                target, higherIsBetter, singlePointClusterScore,
+                target, nodeWeight, higherIsBetter, singlePointClusterScore,
                 constantEstimator, "SimplifiedTarema"
         );
     }
 
     @Override
-    public void onTaskTermination(TraceRecord trace, TaskConfig config, NodeWithAlloc node) {
-        int id = traceStorage.saveTrace(trace, nextTaskId, config, node);
+    public void onTaskTermination(TraceRecord trace, TaskConfig config, String nodeName) {
+        int id = traceStorage.saveTrace(trace, nextTaskId, config, nodeName);
         nextTaskId++;
 
         long charactersRead = traceStorage.getForId(id, LongField.CHARACTERS_READ);
-        long realtime = traceStorage.getForId(id, LongField.REALTIME);
-        nodeLabeller.addDataPoint(node, config.getTask(), charactersRead, realtime);
+        T realtime = traceStorage.getForId(id, target);
+        nodeLabeller.addDataPoint(nodeName, config.getTask(), charactersRead, realtime);
     }
 
     @Override
@@ -110,9 +116,10 @@ public class OnlineTaremaApproach<T extends Number & Comparable<T>> implements A
         nodeLabeller.updateLabels();
 
         if (!nodeLabeller.getLabels().isEmpty()) {
-            float[] groupWeights = GroupWeights.forLabels(nodeLabeller.getMaxLabel(), nodeLabeller.getLabels());
-            // HACK: to change the target field, change the Field here
-            taskLabels = TaskLabeller.logarithmicTaskLabels(traceStorage, LongField.REALTIME, groupWeights);
+            float[] groupWeights = GroupWeights.forLabels(
+                    nodeLabeller.getMaxLabel(), nodeLabeller.getLabels(), LotaruTraces.nodeCpus::get);
+            // HACK: to change the target field, change the Weight here
+            taskLabels = TaskLabeller.logarithmicTaskLabels(traceStorage, target, groupWeights);
         }
     }
 
@@ -126,25 +133,25 @@ public class OnlineTaremaApproach<T extends Number & Comparable<T>> implements A
         for (int i = 0; i <= nodeLabeller.getMaxLabel(); i++) {
             clusters.add(new Cluster<>());
         }
-        for (NodeWithAlloc node : LotaruTraces.getNodesIncludingLocal()) {
-            Integer label = nodeLabeller.getLabels().get(node);
+        for (String nodeName : LotaruTraces.getNodesIncludingLocal()) {
+            Integer label = nodeLabeller.getLabels().get(nodeName);
             if (label == null) {
-                System.out.printf("%s(nan) ", node.getName());
+                System.out.printf("%s(nan) ", nodeName);
                 continue;
             }
-            System.out.printf("%s(%d) ", node.getName(), label);
-            double value = LotaruTraces.cpuBenchmarks.get(node);
+            System.out.printf("%s(%d) ", nodeName, label);
+            double value = LotaruTraces.cpuBenchmarks.get(nodeName);
             DoublePoint point = new DoublePoint(new double[]{value});
             clusters.get(label).addPoint(point);
         }
         double score = silhouetteScore.score(clusters);
         System.out.printf(" -> Silhouette score: %f\n", score);
-        for (NodeWithAlloc node : LotaruTraces.getNodesIncludingLocal()) {
-            Double estimation = nodeLabeller.getEstimations().get(node);
+        for (String nodeName : LotaruTraces.getNodesIncludingLocal()) {
+            Double estimation = nodeLabeller.getEstimations().get(nodeName);
             if (estimation == null) {
-                System.out.printf("%s(nan) ", node.getName());
+                System.out.printf("%s(nan) ", nodeName);
             } else {
-                System.out.printf("%s(%f) ", node.getName(), estimation);
+                System.out.printf("%s(%f) ", nodeName, estimation);
             }
         }
         System.out.println();
@@ -179,13 +186,13 @@ public class OnlineTaremaApproach<T extends Number & Comparable<T>> implements A
         }
         try (PrintWriter writer = new PrintWriter(new FileOutputStream(nodeLabelFile, true))) {
             if (newlyCreated) {
-                for (NodeWithAlloc node : LotaruTraces.getNodesIncludingLocal()) {
-                    writer.printf("%s,", node.getName());
+                for (String nodeName : LotaruTraces.getNodesIncludingLocal()) {
+                    writer.printf("%s,", nodeName);
                 }
                 writer.println();
             }
-            for (NodeWithAlloc node : LotaruTraces.getNodesIncludingLocal()) {
-                Integer label = nodeLabeller.getLabels().get(node);
+            for (String nodeName : LotaruTraces.getNodesIncludingLocal()) {
+                Integer label = nodeLabeller.getLabels().get(nodeName);
                 if (label == null) {
                     writer.printf("nan,");
                 } else {
@@ -206,13 +213,13 @@ public class OnlineTaremaApproach<T extends Number & Comparable<T>> implements A
         }
         try (PrintWriter writer = new PrintWriter(new FileOutputStream(nodeEstimationFile, true))) {
             if (newlyCreated) {
-                for (NodeWithAlloc node : LotaruTraces.getNodesIncludingLocal()) {
-                    writer.printf("%s,", node.getName());
+                for (String nodeName : LotaruTraces.getNodesIncludingLocal()) {
+                    writer.printf("%s,", nodeName);
                 }
                 writer.println();
             }
-            for (NodeWithAlloc node : LotaruTraces.getNodesIncludingLocal()) {
-                Double estimation = nodeLabeller.getEstimations().get(node);
+            for (String nodeName : LotaruTraces.getNodesIncludingLocal()) {
+                Double estimation = nodeLabeller.getEstimations().get(nodeName);
                 if (estimation == null) {
                     writer.printf("nan,");
                 } else {
@@ -244,12 +251,12 @@ public class OnlineTaremaApproach<T extends Number & Comparable<T>> implements A
                 for (int i = 0; i <= nodeLabeller.getMaxLabel(); i++) {
                     clusters.add(new Cluster<>());
                 }
-                for (NodeWithAlloc node : LotaruTraces.getNodesIncludingLocal()) {
-                    Integer label = nodeLabeller.getLabels().get(node);
+                for (String nodeName : LotaruTraces.getNodesIncludingLocal()) {
+                    Integer label = nodeLabeller.getLabels().get(nodeName);
                     if (label == null) {
                         continue;
                     }
-                    double value = LotaruTraces.cpuBenchmarks.get(node);
+                    double value = LotaruTraces.cpuBenchmarks.get(nodeName);
                     DoublePoint point = new DoublePoint(new double[]{value});
                     clusters.get(label).addPoint(point);
                 }

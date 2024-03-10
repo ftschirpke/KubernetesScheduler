@@ -14,6 +14,7 @@ import lombok.extern.slf4j.Slf4j;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.function.Function;
 
 @Slf4j
 public class OnlineTaremaScheduler extends TaremaScheduler {
@@ -58,20 +59,27 @@ public class OnlineTaremaScheduler extends TaremaScheduler {
 
     @Override
     int nodeTaskLabelDifference(NodeWithAlloc node, String taskName) {
+        String nodeName = node.getName();
         if (!nodeLabelsReady() || !taskIsKnown(taskName)) {
+            // should not happen because TaremaScheduler checks for this already
+            return Integer.MAX_VALUE;
+        }
+        Integer nodeLabel = nodeLabeller.getLabels().get(nodeName);
+        if (nodeLabel == null) {
+            // prioritize nodes we don't know about yet
             return 0;
         }
-        int nodeLabel = nodeLabeller.getLabels().get(node);
         int taskLabel = taskLabels.get(taskName);
         return Math.abs(nodeLabel - taskLabel);
     }
 
     @Override
     int nodeSpeed(NodeWithAlloc node) {
+        String nodeName = node.getName();
         if (!nodeLabelsReady()) {
             return 0;
         }
-        return nodeLabeller.getLabels().get(node);
+        return nodeLabeller.getLabels().get(nodeName);
     }
 
     @Override
@@ -100,18 +108,18 @@ public class OnlineTaremaScheduler extends TaremaScheduler {
         log.info("Online Tarema Scheduler: Pod {} trace saved.", pod.getName());
 
         NodeWithAlloc node = task.getNode();
-        recalculateNodeLabelsWithNewSample(node, task.getConfig().getTask(), traceId);
+        recalculateNodeLabelsWithNewSample(node.getName(), task.getConfig().getTask(), traceId);
         if (nodeLabelsReady()) {
             recalculateTaskLabels();
         }
     }
 
-    private void recalculateNodeLabelsWithNewSample(NodeWithAlloc node, String taskName, int traceId) {
+    private void recalculateNodeLabelsWithNewSample(String nodeName, String taskName, int traceId) {
         long startTime = System.currentTimeMillis();
 
         long charactersRead = traces.getForId(traceId, LongField.CHARACTERS_READ);
         long targetValue = traces.getForId(traceId, TARGET);
-        nodeLabeller.addDataPoint(node, taskName, charactersRead, targetValue);
+        nodeLabeller.addDataPoint(nodeName, taskName, charactersRead, targetValue);
         boolean labelsChanged = nodeLabeller.updateLabels();
 
         labelsLogger.writeNodeEstimations(nodeLabeller.getEstimations(), TARGET.toString(), traces.size());
@@ -126,7 +134,8 @@ public class OnlineTaremaScheduler extends TaremaScheduler {
     private void recalculateTaskLabels() {
         long startTime = System.currentTimeMillis();
 
-        float[] groupWeights = GroupWeights.forLabels(nodeLabeller.getMaxLabel(), nodeLabeller.getLabels());
+        Function<String, Float> nodeWeight = nodeName -> GroupWeights.cpuNodeWeight(client.getNodeByName(nodeName));
+        float[] groupWeights = GroupWeights.forLabels(nodeLabeller.getMaxLabel(), nodeLabeller.getLabels(), nodeWeight);
         taskLabels = TaskLabeller.logarithmicTaskLabels(traces, TARGET, groupWeights);
         labelsLogger.writeTaskLabels(taskLabels, TARGET.toString(), traces.size());
 

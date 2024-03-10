@@ -1,6 +1,5 @@
 package labelling;
 
-import cws.k8s.scheduler.model.NodeWithAlloc;
 import cws.k8s.scheduler.model.TaskConfig;
 import cws.k8s.scheduler.scheduler.nextflow_trace.LongField;
 import cws.k8s.scheduler.scheduler.nextflow_trace.TraceField;
@@ -14,9 +13,11 @@ import org.apache.commons.lang3.ArrayUtils;
 import java.io.File;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
-import java.util.HashSet;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Set;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 @Slf4j
@@ -49,6 +50,7 @@ public class LabelConvergenceExperiment {
 
         double[] scores = {0.5, 0.66, 0.8, 0.9};
         TraceField<Long> target = LongField.REALTIME;
+        Function<String, Float> nodeWeight = LotaruTraces.nodeCpus::get;
         boolean higherIsBetter = false;
 
         boolean writeState = true;
@@ -62,8 +64,8 @@ public class LabelConvergenceExperiment {
 
             for (String experimentName : LotaruTraces.experiments) {
                 for (String label : LotaruTraces.labels) {
-                    experiment(args[0], experimentName, label, target, higherIsBetter, singlePointClusterScore,
-                            fullString, writeState);
+                    experiment(args[0], experimentName, label, target, nodeWeight, higherIsBetter,
+                            singlePointClusterScore, fullString, writeState);
                 }
             }
         }
@@ -73,13 +75,14 @@ public class LabelConvergenceExperiment {
                                                                      String experimentName,
                                                                      String label,
                                                                      TraceField<T> target,
+                                                                     Function<String, Float> nodeWeight,
                                                                      boolean higherIsBetter,
                                                                      double singlePointClusterScore,
                                                                      String dirString,
                                                                      boolean writeState) {
         LabelConvergenceExperiment experiment = new LabelConvergenceExperiment(experimentName, label, dirString, writeState);
         experiment.initializeTraces(lotaruTracesDir);
-        experiment.setApproaches(target, higherIsBetter, singlePointClusterScore);
+        experiment.setApproaches(target, nodeWeight, higherIsBetter, singlePointClusterScore);
         experiment.run();
     }
 
@@ -102,19 +105,28 @@ public class LabelConvergenceExperiment {
     }
 
     <T extends Number & Comparable<T>> void setApproaches(TraceField<T> target,
+                                                          Function<String, Float> nodeWeight,
                                                           boolean higherIsBetter,
                                                           double singlePointClusterScore) {
-        Set<NodeWithAlloc> nodes;
+
+        Stream<String> nodeStream;
         if (includeLocal) {
-            nodes = Set.of(LotaruTraces.getNodesIncludingLocal());
+            nodeStream = Arrays.stream(LotaruTraces.getNodesIncludingLocal());
         } else {
-            nodes = new HashSet<>(LotaruTraces.getNodesWithoutLocal());
+            nodeStream = LotaruTraces.getNodesWithoutLocal().stream();
         }
+        Set<String> nodes = nodeStream.collect(Collectors.toSet());
 
         approaches.add(new BenchmarkTaremaApproach(singlePointClusterScore));
-        approaches.add(OnlineTaremaApproach.naive(target, higherIsBetter, singlePointClusterScore, nodes));
-        approaches.add(OnlineTaremaApproach.transitive(target, higherIsBetter, singlePointClusterScore, nodes));
-        approaches.add(OnlineTaremaApproach.tarema(target, LotaruTraces.cpuBenchmarks, true, singlePointClusterScore));
+        approaches.add(
+                OnlineTaremaApproach.naive(target, nodeWeight, higherIsBetter, singlePointClusterScore, nodes)
+        );
+        approaches.add(
+                OnlineTaremaApproach.transitive(target, nodeWeight, higherIsBetter, singlePointClusterScore, nodes)
+        );
+        approaches.add(
+                OnlineTaremaApproach.tarema(target, nodeWeight, LotaruTraces.cpuBenchmarks, true, singlePointClusterScore)
+        );
     }
 
     void run() {
@@ -131,11 +143,11 @@ public class LabelConvergenceExperiment {
         }
         lines.forEachOrdered(line -> {
             String machineName = lotaruTraces.getFromLine("Machine", line);
-            NodeWithAlloc node = LotaruTraces.machineNames.get(machineName);
+            String nodeName = LotaruTraces.machineNames.get(machineName);
             TaskConfig config = lotaruTraces.taskConfigFromLine(line);
             TraceRecord trace = lotaruTraces.taskTraceFromLine(line);
             for (Approach approach : approaches) {
-                approach.onTaskTermination(trace, config, node);
+                approach.onTaskTermination(trace, config, nodeName);
                 approach.recalculate();
                 if (writeState) {
                     approach.writeState(experimentDir, lotaruTraces.taskNames);

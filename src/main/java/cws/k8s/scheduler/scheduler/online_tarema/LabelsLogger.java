@@ -1,6 +1,5 @@
 package cws.k8s.scheduler.scheduler.online_tarema;
 
-import cws.k8s.scheduler.model.NodeWithAlloc;
 import lombok.extern.slf4j.Slf4j;
 
 import java.io.*;
@@ -82,8 +81,8 @@ public class LabelsLogger {
         return true;
     }
 
-    public void writeNodeLabels(Map<NodeWithAlloc, Integer> labels, String target, int iteration) {
-        if (nodeLabelsFile == null) {
+    private <T> void writeMap(Map<String, T> labels, String target, int iteration, File file) {
+        if (file == null) {
             return;
         }
         StringBuilder sb = new StringBuilder();
@@ -91,59 +90,7 @@ public class LabelsLogger {
         sb.append("\"iteration\": ");
         sb.append(iteration);
         sb.append(", ");
-        for (Map.Entry<NodeWithAlloc, Integer> entry : labels.entrySet()) {
-            sb.append('\"');
-            sb.append(entry.getKey().getName());
-            sb.append("\": ");
-            sb.append(entry.getValue());
-            sb.append(", ");
-        }
-        sb.append("\"target\": \"");
-        sb.append(target);
-        sb.append("\"}");
-        String content = sb.toString();
-
-        if (!writeToFile(content, nodeLabelsFile)) {
-            log.error("Failed to write node labels to file: {}", content);
-        }
-    }
-
-    public void writeNodeEstimations(Map<NodeWithAlloc, Double> estimations, String target, int iteration) {
-        if (nodeEstimationsFile == null) {
-            return;
-        }
-        StringBuilder sb = new StringBuilder();
-        sb.append("{");
-        sb.append("\"iteration\": ");
-        sb.append(iteration);
-        sb.append(", ");
-        for (Map.Entry<NodeWithAlloc, Double> entry : estimations.entrySet()) {
-            sb.append('\"');
-            sb.append(entry.getKey().getName());
-            sb.append("\": ");
-            sb.append(entry.getValue());
-            sb.append(", ");
-        }
-        sb.append("\"target\": \"");
-        sb.append(target);
-        sb.append("\"}");
-        String content = sb.toString();
-
-        if (!writeToFile(content, nodeEstimationsFile)) {
-            log.error("Failed to write node estimations to file: {}", content);
-        }
-    }
-
-    public void writeTaskLabels(Map<String, Integer> labels, String target, int iteration) {
-        if (taskLabelsFile == null) {
-            return;
-        }
-        StringBuilder sb = new StringBuilder();
-        sb.append("{");
-        sb.append("\"iteration\": ");
-        sb.append(iteration);
-        sb.append(", ");
-        for (Map.Entry<String, Integer> entry : labels.entrySet()) {
+        for (Map.Entry<String, T> entry : labels.entrySet()) {
             sb.append('\"');
             sb.append(entry.getKey());
             sb.append("\": ");
@@ -155,9 +102,22 @@ public class LabelsLogger {
         sb.append("\"}");
         String content = sb.toString();
 
-        if (!writeToFile(content, taskLabelsFile)) {
-            log.error("Failed to write task labels to file: {}", content);
+        if (!writeToFile(content, file)) {
+            log.error("Failed to write node labels to file: {}", content);
         }
+
+    }
+
+    public void writeNodeLabels(Map<String, Integer> labels, String target, int iteration) {
+        writeMap(labels, target, iteration, nodeLabelsFile);
+    }
+
+    public void writeNodeEstimations(Map<String, Double> estimations, String target, int iteration) {
+        writeMap(estimations, target, iteration, nodeEstimationsFile);
+    }
+
+    public void writeTaskLabels(Map<String, Integer> labels, String target, int iteration) {
+        writeMap(labels, target, iteration, taskLabelsFile);
     }
 
 

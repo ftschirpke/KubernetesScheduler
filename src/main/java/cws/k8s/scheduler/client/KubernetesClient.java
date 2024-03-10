@@ -105,6 +105,10 @@ public class KubernetesClient extends DefaultKubernetesClient  {
         return new ArrayList<>(this.nodeHolder.values());
     }
 
+    public NodeWithAlloc getNodeByName( String name ){
+        return this.nodeHolder.get( name );
+    }
+
     public BigDecimal getMemoryOfNode(NodeWithAlloc node ){
         final Quantity memory = this
                 .top()

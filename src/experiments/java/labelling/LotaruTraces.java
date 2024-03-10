@@ -1,6 +1,5 @@
 package labelling;
 
-import cws.k8s.scheduler.model.NodeWithAlloc;
 import cws.k8s.scheduler.model.Requirements;
 import cws.k8s.scheduler.model.TaskConfig;
 import cws.k8s.scheduler.scheduler.nextflow_trace.TraceRecord;
@@ -24,25 +23,38 @@ public class LotaruTraces {
         return new Requirements(cpu, mem);
     }
 
-    private static final NodeWithAlloc[] nodes = new NodeWithAlloc[]{
-            new NodeWithAlloc("local", requirementsHelper(8, 16)),
-            new NodeWithAlloc("a1", requirementsHelper(2 * 4, 32)),
-            new NodeWithAlloc("a2", requirementsHelper(2 * 4, 32)),
-            new NodeWithAlloc("n1", requirementsHelper(8, 16)),
-            new NodeWithAlloc("n2", requirementsHelper(8, 16)),
-            new NodeWithAlloc("c2", requirementsHelper(8, 32))
-    };
+    private static final String[] nodes = new String[]{"local", "a1", "a2", "n1", "n2", "c2"};
+    public static Map<String, Float> nodeCpus = new HashMap<>(
+            Map.of(
+                    nodes[0], 8f,
+                    nodes[1], 2*4f,
+                    nodes[2], 2*4f,
+                    nodes[3], 8f,
+                    nodes[4], 8f,
+                    nodes[5], 8f
+            )
+    );
+    public static Map<String, Float> nodeGigabyteMemory = new HashMap<>(
+            Map.of(
+                    nodes[0], 16f,
+                    nodes[1], 32f,
+                    nodes[2], 32f,
+                    nodes[3], 16f,
+                    nodes[4], 16f,
+                    nodes[5], 32f
+            )
+    );
 
-    public static List<NodeWithAlloc> getNodesWithoutLocal() {
+    public static List<String> getNodesWithoutLocal() {
         return Arrays.asList(nodes).subList(1, nodes.length);
     }
 
-    public static NodeWithAlloc[] getNodesIncludingLocal() {
+    public static String[] getNodesIncludingLocal() {
         return nodes;
     }
 
 
-    public static final Map<String, NodeWithAlloc> machineNames = Map.of(
+    public static final Map<String, String> machineNames = Map.of(
             "local", nodes[0],
             "asok01", nodes[1],
             "asok02", nodes[2],
@@ -51,15 +63,13 @@ public class LotaruTraces {
             "c2", nodes[5]
     );
 
-    private static final NodeWithAlloc local = nodes[0];
-
     static String[] experiments = new String[]{"atacseq", "bacass", "chipseq", "eager", "methylseq"};
     static String[] labels = new String[]{"test", "train-1", "train-2"};
 
     // TODO: should "local" be included?
-    public static Map<NodeWithAlloc, Double> cpuBenchmarks = new HashMap<>(
+    public static Map<String, Double> cpuBenchmarks = new HashMap<>(
             Map.of(
-                    nodes[0], 458.0, // TODO: should "local" be included?
+                    nodes[0], 458.0,
                     nodes[1], 223.0,
                     nodes[2], 223.0,
                     nodes[3], 369.0,
@@ -67,9 +77,9 @@ public class LotaruTraces {
                     nodes[5], 523.0
             )
     );
-    public static Map<NodeWithAlloc, Double> memoryBenchmarks = new HashMap<>(
+    public static Map<String, Double> memoryBenchmarks = new HashMap<>(
             Map.of(
-                    nodes[0], 18700.0, // TODO: should "local" be included?
+                    nodes[0], 18700.0,
                     nodes[1], 11000.0,
                     nodes[2], 11000.0,
                     nodes[3], 13400.0,
@@ -77,9 +87,9 @@ public class LotaruTraces {
                     nodes[5], 18900.0
             )
     );
-    public static Map<NodeWithAlloc, Double> readBenchmarks = new HashMap<>(
+    public static Map<String, Double> readBenchmarks = new HashMap<>(
             Map.of(
-                    nodes[0], 414.0, // TODO: should "local" be included?
+                    nodes[0], 414.0,
                     nodes[1], 306.0,
                     nodes[2], 341.0,
                     nodes[3], 481.0,
@@ -87,9 +97,9 @@ public class LotaruTraces {
                     nodes[5], 481.0
             )
     );
-    public static Map<NodeWithAlloc, Double> writeBenchmarks = new HashMap<>(
+    public static Map<String, Double> writeBenchmarks = new HashMap<>(
             Map.of(
-                    nodes[0], 415.0, // TODO: should "local" be included?
+                    nodes[0], 415.0,
                     nodes[1], 301.0,
                     nodes[2], 336.0,
                     nodes[3], 483.0,
@@ -100,18 +110,18 @@ public class LotaruTraces {
 
     String[] csvHeader;
 
-    Map<NodeWithAlloc, List<String[]>> csvData = new HashMap<>();
+    Map<String, List<String[]>> csvData = new HashMap<>();
     List<String> taskNames = new ArrayList<>();
 
-    private Stream<Map.Entry<NodeWithAlloc, String[]>> allLineEntries(boolean includeLocal) {
-        Stream<Map.Entry<NodeWithAlloc, List<String[]>>> stream = csvData.entrySet().stream();
+    private Stream<Map.Entry<String, String[]>> allLineEntries(boolean includeLocal) {
+        Stream<Map.Entry<String, List<String[]>>> stream = csvData.entrySet().stream();
         if (!includeLocal) {
-            stream = stream.filter(entry -> !entry.getKey().equals(local));
+            stream = stream.filter(entry -> !entry.getKey().equals("local"));
         }
         return stream.flatMap(entry -> {
-            NodeWithAlloc node = entry.getKey();
+            String nodeName = entry.getKey();
             List<String[]> lines = entry.getValue();
-            return lines.stream().map(line -> Map.entry(node, line));
+            return lines.stream().map(line -> Map.entry(nodeName, line));
         });
     }
 
@@ -121,8 +131,8 @@ public class LotaruTraces {
 
     Stream<String[]> allLinesByNode(boolean includeLocal) {
         return allLineEntries(includeLocal).sorted(Comparator.comparing(entry -> {
-            NodeWithAlloc node = entry.getKey();
-            return ArrayUtils.indexOf(nodes, node);
+            String nodeName = entry.getKey();
+            return ArrayUtils.indexOf(nodes, nodeName);
         })).map(Map.Entry::getValue);
     }
 
@@ -135,24 +145,24 @@ public class LotaruTraces {
 
     Stream<String[]> allLinesFairly(boolean includeLocal) {
         return allLineEntries(includeLocal).sorted(Comparator.comparing(entry -> {
-            NodeWithAlloc node = entry.getKey();
-            int nodeIndex = ArrayUtils.indexOf(nodes, node);
+            String nodeName = entry.getKey();
+            int nodeIndex = ArrayUtils.indexOf(nodes, nodeName);
             String[] line = entry.getValue();
-            int indexInNode = csvData.get(node).indexOf(line);
+            int indexInNode = csvData.get(nodeName).indexOf(line);
             return indexInNode * nodes.length + nodeIndex;
         })).map(Map.Entry::getValue);
     }
 
-    String[] getLineForTask(NodeWithAlloc node, String taskName) {
-        if (node == null) {
+    String[] getLineForTask(String nodeName, String taskName) {
+        if (nodeName == null) {
             int idx = RandomUtils.nextInt(0, nodes.length);
-            node = nodes[idx];
+            nodeName = nodes[idx];
         }
         if (taskName == null) {
             int idx = RandomUtils.nextInt(0, taskNames.size());
             taskName = taskNames.get(idx);
         }
-        List<String[]> nodeData = csvData.get(node);
+        List<String[]> nodeData = csvData.get(nodeName);
         if (nodeData == null) {
             return null;
         }
@@ -168,8 +178,8 @@ public class LotaruTraces {
     void status() {
         System.out.println(Arrays.toString(csvHeader));
         Map<String, Map<String, Integer>> combinationCounts = new HashMap<>();
-        for (Map.Entry<NodeWithAlloc, List<String[]>> entry : csvData.entrySet()) {
-            System.out.println("=== " + entry.getKey().getName() + " ===");
+        for (Map.Entry<String, List<String[]>> entry : csvData.entrySet()) {
+            System.out.println("=== " + entry.getKey() + " ===");
             for (String[] row : entry.getValue()) {
                 String label = row[0];
                 combinationCounts.putIfAbsent(label, new HashMap<>());
@@ -202,13 +212,11 @@ public class LotaruTraces {
         }
         for (File nodeDir : nodeDirs) {
             String nodeName = nodeDir.getName();
-            Stream<NodeWithAlloc> nodeStream = Arrays.stream(nodes);
-            Optional<NodeWithAlloc> nodeOptional = nodeStream.filter(n -> n.getName().equals(nodeName)).findFirst();
-            if (nodeOptional.isEmpty()) {
+            int index = ArrayUtils.indexOf(nodes, nodeName);
+            if (index == -1) {
                 log.info("Skipping directory {} as it is not in the list of nodes", nodeName);
                 continue;
             }
-            NodeWithAlloc node = nodeOptional.get();
             if (nodeDir.isDirectory()) {
                 File[] experimentDirs = nodeDir.listFiles();
                 if (experimentDirs == null) {
@@ -253,11 +261,11 @@ public class LotaruTraces {
                         }
                         data.add(dataLine);
                     }
-                    if (csvData.containsKey(node)) {
-                        log.error("Duplicate data for {}", node);
+                    if (csvData.containsKey(nodeName)) {
+                        log.error("Duplicate data for {}", nodeName);
                         System.exit(1);
                     }
-                    csvData.put(node, data);
+                    csvData.put(nodeName, data);
                 } catch (IOException e) {
                     log.error("Error reading file {}", traceFile.getName());
                     System.exit(1);
@@ -265,12 +273,12 @@ public class LotaruTraces {
             }
         }
         // sort each node's data by task name
-        for (NodeWithAlloc node : nodes) {
-            if (!csvData.containsKey(node)) {
-                log.error("No data for {}", node);
+        for (String nodeName : nodes) {
+            if (!csvData.containsKey(nodeName)) {
+                log.error("No data for {}", nodeName);
                 System.exit(1);
             }
-            List<String[]> data = csvData.get(node);
+            List<String[]> data = csvData.get(nodeName);
             data.sort(Comparator.comparing(line -> {
                 String task = getFromLine("Task", line);
                 return taskNames.indexOf(task);

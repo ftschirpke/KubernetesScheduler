@@ -1,5 +1,9 @@
 package cws.k8s.scheduler.scheduler.online_tarema;
 
+import cws.k8s.scheduler.model.NodeWithAlloc;
+
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.util.Map;
 import java.util.function.Function;
 
@@ -30,5 +34,15 @@ public class GroupWeights {
             weightsPerGroup[i] /= totalWeights;
         }
         return weightsPerGroup;
+    }
+
+    public static Float cpuNodeWeight(NodeWithAlloc node) {
+        return node.getMaxResources().getCpu().floatValue();
+    }
+
+    public static Float memoryNodeWeight(NodeWithAlloc node) {
+        return node.getMaxResources().getRam()
+                .divide(BigDecimal.valueOf(10_000_000L), RoundingMode.HALF_UP)
+                .floatValue();
     }
 }

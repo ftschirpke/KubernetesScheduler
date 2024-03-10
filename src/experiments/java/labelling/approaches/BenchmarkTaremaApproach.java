@@ -1,6 +1,5 @@
 package labelling.approaches;
 
-import cws.k8s.scheduler.model.NodeWithAlloc;
 import cws.k8s.scheduler.model.TaskConfig;
 import cws.k8s.scheduler.scheduler.nextflow_trace.FloatField;
 import cws.k8s.scheduler.scheduler.nextflow_trace.LongField;
@@ -68,8 +67,8 @@ public class BenchmarkTaremaApproach implements Approach {
     }
 
     @Override
-    public void onTaskTermination(TraceRecord trace, TaskConfig config, NodeWithAlloc node) {
-        traceStorage.saveTrace(trace, nextTaskId, config, node);
+    public void onTaskTermination(TraceRecord trace, TaskConfig config, String nodeName) {
+        traceStorage.saveTrace(trace, nextTaskId, config, nodeName);
         nextTaskId++;
     }
 
@@ -83,8 +82,8 @@ public class BenchmarkTaremaApproach implements Approach {
 
     private void printNodeState(String name, NodeLabeller.LabelState state) {
         System.out.printf("%s -> ", name);
-        for (NodeWithAlloc node : LotaruTraces.getNodesIncludingLocal()) {
-            System.out.printf("%s(%d) ", node.getName(), state.labels().get(node));
+        for (String nodeName : LotaruTraces.getNodesIncludingLocal()) {
+            System.out.printf("%s(%d) ", nodeName, state.labels().get(nodeName));
         }
         System.out.println();
     }
@@ -133,23 +132,23 @@ public class BenchmarkTaremaApproach implements Approach {
         if (newlyCreated) {
             try (PrintWriter writer = new PrintWriter(nodeState)) {
                 writer.printf("CPU:   %d -> ", cpuNodeLabelState.maxLabel());
-                for (NodeWithAlloc node : LotaruTraces.getNodesIncludingLocal()) {
-                    writer.printf("%s(%d) ", node.getName(), cpuNodeLabelState.labels().get(node));
+                for (String nodeName : LotaruTraces.getNodesIncludingLocal()) {
+                    writer.printf("%s(%d) ", nodeName, cpuNodeLabelState.labels().get(nodeName));
                 }
                 writer.println();
                 writer.printf("MEM:   %d -> ", cpuNodeLabelState.maxLabel());
-                for (NodeWithAlloc node : LotaruTraces.getNodesIncludingLocal()) {
-                    writer.printf("%s(%d) ", node.getName(), cpuNodeLabelState.labels().get(node));
+                for (String nodeName : LotaruTraces.getNodesIncludingLocal()) {
+                    writer.printf("%s(%d) ", nodeName, cpuNodeLabelState.labels().get(nodeName));
                 }
                 writer.println();
                 writer.printf("READ:  %d -> ", cpuNodeLabelState.maxLabel());
-                for (NodeWithAlloc node : LotaruTraces.getNodesIncludingLocal()) {
-                    writer.printf("%s(%d) ", node.getName(), cpuNodeLabelState.labels().get(node));
+                for (String nodeName : LotaruTraces.getNodesIncludingLocal()) {
+                    writer.printf("%s(%d) ", nodeName, cpuNodeLabelState.labels().get(nodeName));
                 }
                 writer.println();
                 writer.printf("WRITE: %d -> ", cpuNodeLabelState.maxLabel());
-                for (NodeWithAlloc node : LotaruTraces.getNodesIncludingLocal()) {
-                    writer.printf("%s(%d) ", node.getName(), cpuNodeLabelState.labels().get(node));
+                for (String nodeName : LotaruTraces.getNodesIncludingLocal()) {
+                    writer.printf("%s(%d) ", nodeName, cpuNodeLabelState.labels().get(nodeName));
                 }
                 writer.println();
             } catch (FileNotFoundException e) {

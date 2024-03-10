@@ -21,7 +21,7 @@ public abstract class TaremaScheduler extends Scheduler {
     private final NodeAssign randomNodeAssign = new RandomNodeAssign();
 
     // nodes available to this execution (may not be the whole cluster)
-    protected final Set<NodeWithAlloc> availableNodes = new HashSet<>();
+    protected final Set<String> availableNodes = new HashSet<>();
 
     protected TaremaScheduler(String execution, KubernetesClient client, String namespace, SchedulerConfig config) {
         super(execution, client, namespace, config);
@@ -65,7 +65,8 @@ public abstract class TaremaScheduler extends Scheduler {
         return scheduleObject;
     }
 
-    protected List<NodeTaskAlignment> alignUsingLabels(List<Task> unscheduledTasks, Map<NodeWithAlloc, Requirements> availableByNode) {
+    protected List<NodeTaskAlignment> alignUsingLabels(List<Task> unscheduledTasks,
+                                                       Map<NodeWithAlloc, Requirements> availableByNode) {
         ArrayList<NodeTaskAlignment> alignment = new ArrayList<>();
         for (final Task task : unscheduledTasks) {
             final PodWithAge pod = task.getPod();
@@ -79,10 +80,8 @@ public abstract class TaremaScheduler extends Scheduler {
                 for (Map.Entry<NodeWithAlloc, Requirements> e : availableByNode.entrySet()) {
                     NodeWithAlloc node = e.getKey();
                     Requirements requirements = e.getValue();
-                    if (node.canScheduleNewPod() && affinitiesMatch(pod, node)) {
-                        availableNodes.add(node);
-                    }
                     if (canSchedulePodOnNode(requirements, pod, node)) {
+                        availableNodes.add(node.getName());
                         triedOnNodes++;
                         final double score = highestResourceAvailabilityScore(task, node, requirements);
                         if (highestScore == null || score > highestScore) {
@@ -91,20 +90,18 @@ public abstract class TaremaScheduler extends Scheduler {
                         }
                     }
                 }
-            } else { // taskLabels != null
-                // prioritize nodes with the least label difference (Tarema approach)
-                // and most available resources as a tiebreaker
+            } else {
+                // Tarema approach: prioritize nodes with the least label difference
+                // and most powerful group (or most available resources) as a tiebreaker
                 Integer lowestLabelDiff = null;
                 int highestSpeed = -1;
                 double highestScore = 0.0;
                 for (Map.Entry<NodeWithAlloc, Requirements> e : availableByNode.entrySet()) {
                     NodeWithAlloc node = e.getKey();
                     Requirements requirements = e.getValue();
-                    if (node.canScheduleNewPod() && affinitiesMatch(pod, node)) {
-                        availableNodes.add(node);
-                    }
                     if (canSchedulePodOnNode(requirements, pod, node)) {
                         triedOnNodes++;
+                        availableNodes.add(node.getName());
                         final int labelDifference = nodeTaskLabelDifference(node, abstractTaskName);
                         final int speed = nodeSpeed(node);
                         final double score = highestResourceAvailabilityScore(task, node, requirements);

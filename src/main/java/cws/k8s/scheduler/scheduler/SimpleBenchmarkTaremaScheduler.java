@@ -12,8 +12,7 @@ import lombok.extern.slf4j.Slf4j;
 
 import java.util.HashMap;
 import java.util.Map;
-import java.util.Optional;
-import java.util.stream.Collectors;
+import java.util.function.Function;
 
 @Slf4j
 /*
@@ -46,43 +45,42 @@ public class SimpleBenchmarkTaremaScheduler extends TaremaScheduler {
         super(execution, client, namespace, config);
         this.labelsLogger = new LabelsLogger(config.workDir);
 
-        Map<NodeWithAlloc, Double> estimations = speedEstimations.entrySet().stream()
-                .map(entry -> {
-                    String nodeName = entry.getKey();
-                    Double estimation = entry.getValue();
-                    Optional<NodeWithAlloc> node = getNodeList().stream()
-                            .filter(n -> n.getName().equals(nodeName))
-                            .findFirst();
-                    if (node.isEmpty()) {
-                        throw new IllegalArgumentException("Found node estimations for non-existing node " + nodeName + ".");
-                    }
-                    return Map.entry(node.get(), estimation);
-                })
-                .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
-        labelsLogger.writeNodeEstimations(estimations, TARGET.toString(), 0);
+        for (String nodeName : speedEstimations.keySet()) {
+            NodeWithAlloc node = client.getNodeByName(nodeName);
+            if (node == null) {
+                throw new IllegalArgumentException("Node " + nodeName + " does not exist.");
+            }
+            log.info("Node {} registered with speed estimation: {}", node.getName(), speedEstimations.get(nodeName));
+        }
 
-        nodeLabelState = NodeLabeller.labelOnce(estimations, true, singlePointClusterScore);
+        labelsLogger.writeNodeEstimations(speedEstimations, TARGET.toString(), 0);
+
+        nodeLabelState = NodeLabeller.labelOnce(speedEstimations, true, singlePointClusterScore);
         labelsLogger.writeNodeLabels(nodeLabelState.labels(), TARGET.toString(), 0);
 
-        groupWeights = GroupWeights.forLabels(nodeLabelState.maxLabel(), nodeLabelState.labels());
+        Function<String, Float> nodeWeight = nodeName -> GroupWeights.cpuNodeWeight(client.getNodeByName(nodeName));
+        groupWeights = GroupWeights.forLabels(nodeLabelState.maxLabel(), nodeLabelState.labels(), nodeWeight);
     }
 
     @Override
     int nodeTaskLabelDifference(NodeWithAlloc node, String taskName) {
-        if (!nodeLabelsReady() || !taskIsKnown(taskName)) {
-            return 0;
+        String nodeName = node.getName();
+        if (!taskIsKnown(taskName)) {
+            // should not happen because TaremaScheduler checks for this already
+            return Integer.MAX_VALUE;
+        }
+        Integer nodeLabel = nodeLabelState.labels().get(nodeName);
+        if (nodeLabel == null) {
+            // nodes without estimations are considered to be the slowest or not intended to be used
+            return Integer.MAX_VALUE;
         }
         int taskLabel = taskLabels.get(taskName);
-        int nodeLabel = nodeLabelState.labels().get(node);
         return Math.abs(nodeLabel - taskLabel);
     }
 
     @Override
     int nodeSpeed(NodeWithAlloc node) {
-        if (!nodeLabelsReady()) {
-            return 0;
-        }
-        return nodeLabelState.labels().get(node);
+        return nodeLabelState.labels().get(node.getName());
     }
 
     @Override
