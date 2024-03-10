@@ -8,11 +8,21 @@ public enum IntegerField implements TraceField<Integer> {
         public List<Integer> getValuesFromStorage(TraceStorage storage) {
             return storage.syscrValues;
         }
+
+        @Override
+        public String toString() {
+            return "syscr";
+        }
     },
     WRITE_SYSCALLS {
         @Override
         public List<Integer> getValuesFromStorage(TraceStorage storage) {
             return storage.syscwValues;
+        }
+
+        @Override
+        public String toString() {
+            return "syscw";
         }
     },
     VOLUNTARY_CONTEXT_SWITCHES {
@@ -20,11 +30,21 @@ public enum IntegerField implements TraceField<Integer> {
         public List<Integer> getValuesFromStorage(TraceStorage storage) {
             return storage.volCtxtValues;
         }
+
+        @Override
+        public String toString() {
+            return "vol_ctxt";
+        }
     },
     INVOLUNTARY_CONTEXT_SWITCHES {
         @Override
         public List<Integer> getValuesFromStorage(TraceStorage storage) {
             return storage.invCtxtValues;
+        }
+
+        @Override
+        public String toString() {
+            return "inv_ctxt";
         }
     },
 }

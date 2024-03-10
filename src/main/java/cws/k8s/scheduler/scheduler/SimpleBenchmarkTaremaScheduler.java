@@ -7,10 +7,7 @@ import cws.k8s.scheduler.model.SchedulerConfig;
 import cws.k8s.scheduler.model.Task;
 import cws.k8s.scheduler.scheduler.nextflow_trace.LongField;
 import cws.k8s.scheduler.scheduler.nextflow_trace.TraceStorage;
-import cws.k8s.scheduler.scheduler.online_tarema.GroupWeights;
-import cws.k8s.scheduler.scheduler.online_tarema.NodeLabeller;
-import cws.k8s.scheduler.scheduler.online_tarema.SilhouetteScore;
-import cws.k8s.scheduler.scheduler.online_tarema.TaskLabeller;
+import cws.k8s.scheduler.scheduler.online_tarema.*;
 import lombok.extern.slf4j.Slf4j;
 
 import java.util.HashMap;
@@ -23,11 +20,14 @@ import java.util.stream.Collectors;
  * This class reimplements the original Tarema scheduling but uses only one feature.
  */
 public class SimpleBenchmarkTaremaScheduler extends TaremaScheduler {
+    public static final LongField TARGET = LongField.REALTIME;
     private final TraceStorage traces = new TraceStorage();
 
     private final NodeLabeller.LabelState nodeLabelState;
     private final float[] groupWeights;
     private Map<String, Integer> taskLabels = new HashMap<>();
+
+    private final LabelsLogger labelsLogger;
 
     public SimpleBenchmarkTaremaScheduler(String execution,
                                           KubernetesClient client,
@@ -44,6 +44,7 @@ public class SimpleBenchmarkTaremaScheduler extends TaremaScheduler {
                                           Map<String, Double> speedEstimations,
                                           double singlePointClusterScore) {
         super(execution, client, namespace, config);
+        this.labelsLogger = new LabelsLogger(config.workDir);
 
         Map<NodeWithAlloc, Double> estimations = speedEstimations.entrySet().stream()
                 .map(entry -> {
@@ -58,8 +59,11 @@ public class SimpleBenchmarkTaremaScheduler extends TaremaScheduler {
                     return Map.entry(node.get(), estimation);
                 })
                 .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+        labelsLogger.writeNodeEstimations(estimations, TARGET.toString(), 0);
 
         nodeLabelState = NodeLabeller.labelOnce(estimations, true, singlePointClusterScore);
+        labelsLogger.writeNodeLabels(nodeLabelState.labels(), TARGET.toString(), 0);
+
         groupWeights = GroupWeights.forLabels(nodeLabelState.maxLabel(), nodeLabelState.labels());
     }
 
@@ -111,7 +115,8 @@ public class SimpleBenchmarkTaremaScheduler extends TaremaScheduler {
     void recalculateTaskLabels() {
         long startTime = System.currentTimeMillis();
 
-        taskLabels = TaskLabeller.logarithmicTaskLabels(traces, LongField.REALTIME, groupWeights);
+        taskLabels = TaskLabeller.logarithmicTaskLabels(traces, TARGET, groupWeights);
+        labelsLogger.writeTaskLabels(taskLabels, TARGET.toString(), traces.size());
 
         long endTime = System.currentTimeMillis();
         log.info("Benchmark Tarema Scheduler: Task labels recalculated in {} ms.", endTime - startTime);

@@ -7,10 +7,7 @@ import cws.k8s.scheduler.model.SchedulerConfig;
 import cws.k8s.scheduler.model.Task;
 import cws.k8s.scheduler.scheduler.nextflow_trace.LongField;
 import cws.k8s.scheduler.scheduler.nextflow_trace.TraceStorage;
-import cws.k8s.scheduler.scheduler.online_tarema.GroupWeights;
-import cws.k8s.scheduler.scheduler.online_tarema.NodeLabeller;
-import cws.k8s.scheduler.scheduler.online_tarema.SilhouetteScore;
-import cws.k8s.scheduler.scheduler.online_tarema.TaskLabeller;
+import cws.k8s.scheduler.scheduler.online_tarema.*;
 import cws.k8s.scheduler.scheduler.online_tarema.node_estimator.NodeEstimator;
 import cws.k8s.scheduler.scheduler.online_tarema.node_estimator.PythonNodeEstimator;
 import lombok.extern.slf4j.Slf4j;
@@ -20,10 +17,14 @@ import java.util.Map;
 
 @Slf4j
 public class OnlineTaremaScheduler extends TaremaScheduler {
-    private static final String scriptPath = "external/transitive_node_estimator.py";
+    private static final String SCRIPT_PATH = "external/transitive_node_estimator.py";
+    private static final LongField TARGET = LongField.REALTIME;
+
     private final TraceStorage traces = new TraceStorage();
     private final NodeLabeller nodeLabeller;
     private Map<String, Integer> taskLabels = new HashMap<>();
+
+    private final LabelsLogger labelsLogger;
 
     public OnlineTaremaScheduler(String execution,
                                  KubernetesClient client,
@@ -38,7 +39,8 @@ public class OnlineTaremaScheduler extends TaremaScheduler {
                                  SchedulerConfig config,
                                  double singlePointClusterScore) {
         super(execution, client, namespace, config);
-        NodeEstimator estimator = new PythonNodeEstimator(scriptPath, availableNodes);
+        this.labelsLogger = new LabelsLogger(config.workDir);
+        NodeEstimator estimator = new PythonNodeEstimator(SCRIPT_PATH, availableNodes);
         this.nodeLabeller = new NodeLabeller(estimator, false, singlePointClusterScore);
     }
 
@@ -96,9 +98,14 @@ public class OnlineTaremaScheduler extends TaremaScheduler {
         long startTime = System.currentTimeMillis();
 
         long charactersRead = traces.getForId(traceId, LongField.CHARACTERS_READ);
-        long realtime = traces.getForId(traceId, LongField.REALTIME);
-        nodeLabeller.addDataPoint(node, taskName, charactersRead, realtime);
-        nodeLabeller.updateLabels();
+        long targetValue = traces.getForId(traceId, TARGET);
+        nodeLabeller.addDataPoint(node, taskName, charactersRead, targetValue);
+        boolean labelsChanged = nodeLabeller.updateLabels();
+
+        labelsLogger.writeNodeEstimations(nodeLabeller.getEstimations(), TARGET.toString(), traces.size());
+        if (labelsChanged) {
+            labelsLogger.writeNodeLabels(nodeLabeller.getLabels(), TARGET.toString(), traces.size());
+        }
 
         long endTime = System.currentTimeMillis();
         log.info("Online Tarema Scheduler: Node labels recalculated in {} ms.", endTime - startTime);
@@ -108,7 +115,8 @@ public class OnlineTaremaScheduler extends TaremaScheduler {
         long startTime = System.currentTimeMillis();
 
         float[] groupWeights = GroupWeights.forLabels(nodeLabeller.getMaxLabel(), nodeLabeller.getLabels());
-        taskLabels = TaskLabeller.logarithmicTaskLabels(traces, LongField.REALTIME, groupWeights);
+        taskLabels = TaskLabeller.logarithmicTaskLabels(traces, TARGET, groupWeights);
+        labelsLogger.writeTaskLabels(taskLabels, TARGET.toString(), traces.size());
 
         long endTime = System.currentTimeMillis();
         log.info("Online Tarema Scheduler: Task labels recalculated in {} ms.", endTime - startTime);

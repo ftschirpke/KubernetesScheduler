@@ -7,11 +7,9 @@ import cws.k8s.scheduler.model.SchedulerConfig;
 import cws.k8s.scheduler.model.Task;
 import cws.k8s.scheduler.scheduler.nextflow_trace.FloatField;
 import cws.k8s.scheduler.scheduler.nextflow_trace.LongField;
+import cws.k8s.scheduler.scheduler.nextflow_trace.TraceField;
 import cws.k8s.scheduler.scheduler.nextflow_trace.TraceStorage;
-import cws.k8s.scheduler.scheduler.online_tarema.GroupWeights;
-import cws.k8s.scheduler.scheduler.online_tarema.NodeLabeller;
-import cws.k8s.scheduler.scheduler.online_tarema.SilhouetteScore;
-import cws.k8s.scheduler.scheduler.online_tarema.TaskLabeller;
+import cws.k8s.scheduler.scheduler.online_tarema.*;
 import lombok.extern.slf4j.Slf4j;
 
 import java.util.HashMap;
@@ -24,6 +22,11 @@ import java.util.stream.Collectors;
  * This class reimplements the original Tarema scheduling approach very closely.
  */
 public class BenchmarkTaremaScheduler extends TaremaScheduler {
+    private static final TraceField<Float> CPU_TARGET =  FloatField.CPU_PERCENTAGE;
+    private static final TraceField<Long> MEMORY_TARGET = LongField.RESIDENT_SET_SIZE;
+    private static final TraceField<Long> READ_TARGET = LongField.CHARACTERS_READ;
+    private static final TraceField<Long> WRITE_TARGET = LongField.CHARACTERS_WRITTEN;
+
     private final TraceStorage traces = new TraceStorage();
 
     private final NodeLabeller.LabelState cpuNodeLabelState;
@@ -41,6 +44,8 @@ public class BenchmarkTaremaScheduler extends TaremaScheduler {
     private final NodeLabeller.LabelState writeNodeLabelState;
     private final float[] writeGroupWeights;
     private Map<String, Integer> writeTaskLabels = new HashMap<>();
+
+    private final LabelsLogger labelsLogger;
 
     public BenchmarkTaremaScheduler(String execution,
                                     KubernetesClient client,
@@ -65,6 +70,7 @@ public class BenchmarkTaremaScheduler extends TaremaScheduler {
                                     Map<String, Double> writeSpeedEstimations,
                                     double singlePointClusterScore) {
         super(execution, client, namespace, config);
+        this.labelsLogger = new LabelsLogger(config.workDir);
 
         if (!cpuSpeedEstimations.keySet().equals(memorySpeedEstimations.keySet())
                 || !cpuSpeedEstimations.keySet().equals(readSpeedEstimations.keySet())
@@ -76,10 +82,20 @@ public class BenchmarkTaremaScheduler extends TaremaScheduler {
         Map<NodeWithAlloc, Double> readEstimations = mapEstimationsToNodes(readSpeedEstimations);
         Map<NodeWithAlloc, Double> writeEstimations = mapEstimationsToNodes(writeSpeedEstimations);
 
+        labelsLogger.writeNodeEstimations(cpuEstimations, CPU_TARGET.toString(), 0);
+        labelsLogger.writeNodeEstimations(memoryEstimations, MEMORY_TARGET.toString(), 0);
+        labelsLogger.writeNodeEstimations(readEstimations, READ_TARGET.toString(), 0);
+        labelsLogger.writeNodeEstimations(writeEstimations, WRITE_TARGET.toString(), 0);
+
         cpuNodeLabelState = NodeLabeller.labelOnce(cpuEstimations, true, singlePointClusterScore);
         memoryNodeLabelState = NodeLabeller.labelOnce(memoryEstimations, true, singlePointClusterScore);
         readNodeLabelState = NodeLabeller.labelOnce(readEstimations, true, singlePointClusterScore);
         writeNodeLabelState = NodeLabeller.labelOnce(writeEstimations, true, singlePointClusterScore);
+
+        labelsLogger.writeNodeLabels(cpuNodeLabelState.labels(), CPU_TARGET.toString(), 0);
+        labelsLogger.writeNodeLabels(memoryNodeLabelState.labels(), MEMORY_TARGET.toString(), 0);
+        labelsLogger.writeNodeLabels(readNodeLabelState.labels(), READ_TARGET.toString(), 0);
+        labelsLogger.writeNodeLabels(writeNodeLabelState.labels(), WRITE_TARGET.toString(), 0);
 
         cpuGroupWeights = GroupWeights.forLabels(cpuNodeLabelState.maxLabel(), cpuNodeLabelState.labels());
         memoryGroupWeights = GroupWeights.forLabels(memoryNodeLabelState.maxLabel(), memoryNodeLabelState.labels());
@@ -159,10 +175,15 @@ public class BenchmarkTaremaScheduler extends TaremaScheduler {
     void recalculateTaskLabels() {
         long startTime = System.currentTimeMillis();
 
-        cpuTaskLabels = TaskLabeller.taskLabels(traces, FloatField.CPU_PERCENTAGE, cpuGroupWeights);
-        memoryTaskLabels = TaskLabeller.taskLabels(traces, LongField.RESIDENT_SET_SIZE, memoryGroupWeights);
-        readTaskLabels = TaskLabeller.taskLabels(traces, LongField.CHARACTERS_READ, readGroupWeights);
-        writeTaskLabels = TaskLabeller.taskLabels(traces, LongField.CHARACTERS_WRITTEN, writeGroupWeights);
+        cpuTaskLabels = TaskLabeller.taskLabels(traces, CPU_TARGET, cpuGroupWeights);
+        memoryTaskLabels = TaskLabeller.taskLabels(traces, MEMORY_TARGET, memoryGroupWeights);
+        readTaskLabels = TaskLabeller.taskLabels(traces, READ_TARGET, readGroupWeights);
+        writeTaskLabels = TaskLabeller.taskLabels(traces, WRITE_TARGET, writeGroupWeights);
+
+        labelsLogger.writeTaskLabels(cpuTaskLabels, CPU_TARGET.toString(), traces.size());
+        labelsLogger.writeTaskLabels(memoryTaskLabels, MEMORY_TARGET.toString(), traces.size());
+        labelsLogger.writeTaskLabels(readTaskLabels, READ_TARGET.toString(), traces.size());
+        labelsLogger.writeTaskLabels(writeTaskLabels, WRITE_TARGET.toString(), traces.size());
 
         long endTime = System.currentTimeMillis();
         log.info("Benchmark Tarema Scheduler: Task labels recalculated in {} ms.", endTime - startTime);

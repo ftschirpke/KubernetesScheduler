@@ -59,7 +59,11 @@ public class TraceStorage {
     }
 
     public boolean empty() {
-        return nodes.isEmpty();
+        return taskIds.isEmpty();
+    }
+
+    public int size() {
+        return taskIds.size();
     }
 
     public int saveTaskTrace(Task task) {

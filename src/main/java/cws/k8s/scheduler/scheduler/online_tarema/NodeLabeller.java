@@ -18,7 +18,7 @@ public class NodeLabeller {
     private Integer maxLabel = null;
     @Getter
     private final Map<NodeWithAlloc, Integer> labels = new HashMap<>();
-    @Getter // TODO: remove getter (was added for testing and label experiments)
+    @Getter
     private Map<NodeWithAlloc, Double> estimations = new HashMap<>();
     private final SilhouetteScore<PointWithName<NodeWithAlloc>> silhouetteScore;
     @Getter
