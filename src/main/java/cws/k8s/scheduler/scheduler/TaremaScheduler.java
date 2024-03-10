@@ -21,7 +21,7 @@ public abstract class TaremaScheduler extends Scheduler {
     private final NodeAssign randomNodeAssign = new RandomNodeAssign();
 
     // nodes available to this execution (may not be the whole cluster)
-    protected final Set<String> availableNodes = new HashSet<>();
+    protected final Set<String> usedNodes = new HashSet<>();
 
     protected TaremaScheduler(String execution, KubernetesClient client, String namespace, SchedulerConfig config) {
         super(execution, client, namespace, config);
@@ -36,23 +36,6 @@ public abstract class TaremaScheduler extends Scheduler {
 
     abstract boolean nodeLabelsReady();
 
-    // find all nodes that we can use to schedule the tasks (and thus need labels for)
-    private void findAvailableNodes(final List<Task> unscheduledTasks, final Map<NodeWithAlloc, Requirements> availableByNode) {
-        for (Task unscheduledTask : unscheduledTasks) {
-            final PodWithAge pod = unscheduledTask.getPod();
-            for (Map.Entry<NodeWithAlloc, Requirements> e : availableByNode.entrySet()) {
-                NodeWithAlloc node = e.getKey();
-                Requirements requirements = e.getValue();
-                if (canSchedulePodOnNode(requirements, pod, node)) {
-                    availableNodes.add(node.getName());
-                    if (availableNodes.size() >= availableByNode.size()) {
-                        return;
-                    }
-                }
-            }
-        }
-    }
-
     @Override
     public ScheduleObject getTaskNodeAlignment(final List<Task> unscheduledTasks, final Map<NodeWithAlloc, Requirements> availableByNode) {
         long start = System.currentTimeMillis();
@@ -63,22 +46,23 @@ public abstract class TaremaScheduler extends Scheduler {
             }
         }
 
-        List<NodeTaskAlignment> alignment;
+        List<NodeTaskAlignment> alignments;
         if (!nodeLabelsReady()) {
-            findAvailableNodes(unscheduledTasks, availableByNode);
             minInputPrioritize.sortTasks(unscheduledTasks);
-            alignment = randomNodeAssign.getTaskNodeAlignment(unscheduledTasks, availableByNode);
+            alignments = randomNodeAssign.getTaskNodeAlignment(unscheduledTasks, availableByNode);
         } else {
             minRankPrioritize.sortTasks(unscheduledTasks);
-            alignment = alignUsingLabels(unscheduledTasks, availableByNode);
+            alignments = alignUsingLabels(unscheduledTasks, availableByNode);
         }
+
+        alignments.forEach(alignment -> usedNodes.add(alignment.node.getName()));
 
         long timeDelta = System.currentTimeMillis() - start;
         for (Task unscheduledTask : unscheduledTasks) {
             unscheduledTask.getTraceRecord().setSchedulerTimeToSchedule((int) timeDelta);
         }
 
-        final ScheduleObject scheduleObject = new ScheduleObject(alignment);
+        final ScheduleObject scheduleObject = new ScheduleObject(alignments);
         scheduleObject.setCheckStillPossible(false);
         return scheduleObject;
     }
@@ -99,7 +83,6 @@ public abstract class TaremaScheduler extends Scheduler {
                     NodeWithAlloc node = e.getKey();
                     Requirements requirements = e.getValue();
                     if (canSchedulePodOnNode(requirements, pod, node)) {
-                        availableNodes.add(node.getName());
                         triedOnNodes++;
                         final double score = highestResourceAvailabilityScore(task, node, requirements);
                         if (highestScore == null || score > highestScore) {
@@ -119,7 +102,6 @@ public abstract class TaremaScheduler extends Scheduler {
                     Requirements requirements = e.getValue();
                     if (canSchedulePodOnNode(requirements, pod, node)) {
                         triedOnNodes++;
-                        availableNodes.add(node.getName());
                         final int labelDifference = nodeTaskLabelDifference(node, abstractTaskName);
                         final int speed = nodeSpeed(node);
                         final double score = highestResourceAvailabilityScore(task, node, requirements);

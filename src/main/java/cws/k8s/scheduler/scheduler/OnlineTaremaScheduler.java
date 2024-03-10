@@ -53,7 +53,7 @@ public class OnlineTaremaScheduler extends TaremaScheduler {
             this.labelsLogger = new LabelsLogger(config.workDir);
         }
 
-        NodeEstimator estimator = new PythonNodeEstimator(SCRIPT_PATH, availableNodes);
+        NodeEstimator estimator = new PythonNodeEstimator(SCRIPT_PATH, usedNodes);
         this.nodeLabeller = new NodeLabeller(estimator, false, singlePointClusterScore);
     }
 
@@ -122,7 +122,9 @@ public class OnlineTaremaScheduler extends TaremaScheduler {
         nodeLabeller.addDataPoint(nodeName, taskName, charactersRead, targetValue);
         boolean labelsChanged = nodeLabeller.updateLabels();
 
-        labelsLogger.writeNodeEstimations(nodeLabeller.getEstimations(), TARGET.toString(), traces.size());
+        if (!nodeLabeller.getEstimations().isEmpty()) {
+            labelsLogger.writeNodeEstimations(nodeLabeller.getEstimations(), TARGET.toString(), traces.size());
+        }
         if (labelsChanged) {
             labelsLogger.writeNodeLabels(nodeLabeller.getLabels(), TARGET.toString(), traces.size());
         }
