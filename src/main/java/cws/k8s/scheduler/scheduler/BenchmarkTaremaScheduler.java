@@ -70,6 +70,9 @@ public class BenchmarkTaremaScheduler extends TaremaScheduler {
                                     Map<String, Double> writeSpeedEstimations,
                                     double singlePointClusterScore) {
         super(execution, client, namespace, config);
+        if (config.workDir == null) {
+            throw new IllegalArgumentException("Work directory must be set in the configuration.");
+        }
         this.labelsLogger = new LabelsLogger(config.workDir);
 
         if (!cpuSpeedEstimations.keySet().equals(memorySpeedEstimations.keySet())

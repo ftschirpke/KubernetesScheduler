@@ -39,6 +39,9 @@ public class OnlineTaremaScheduler extends TaremaScheduler {
                                  SchedulerConfig config,
                                  double singlePointClusterScore) {
         super(execution, client, namespace, config);
+        if (config.workDir == null) {
+            throw new IllegalArgumentException("Work directory must be set in the configuration.");
+        }
         this.labelsLogger = new LabelsLogger(config.workDir);
         NodeEstimator estimator = new PythonNodeEstimator(SCRIPT_PATH, availableNodes);
         this.nodeLabeller = new NodeLabeller(estimator, false, singlePointClusterScore);

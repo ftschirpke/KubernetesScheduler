@@ -30,6 +30,7 @@ import org.springframework.scheduling.annotation.EnableScheduling;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.web.bind.annotation.*;
 
+import java.io.File;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -104,6 +105,13 @@ public class SchedulerRestController {
 
         if ( schedulerHolder.containsKey( execution ) ) {
             return noSchedulerFor( execution );
+        }
+
+        if ( config.workDir != null ) {
+            File file = new File( config.workDir );
+            if ( !file.exists() ) {
+                file.mkdirs();
+            }
         }
 
         switch ( strategy.toLowerCase() ){
