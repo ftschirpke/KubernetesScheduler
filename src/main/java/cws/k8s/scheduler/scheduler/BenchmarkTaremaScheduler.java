@@ -71,9 +71,17 @@ public class BenchmarkTaremaScheduler extends TaremaScheduler {
                                     double singlePointClusterScore) {
         super(execution, client, namespace, config);
         if (config.workDir == null) {
-            throw new IllegalArgumentException("Work directory must be set in the configuration.");
+            String workDir;
+            if (config.volumeClaims.isEmpty()) {
+                workDir = "/tmp/scheduler";
+            } else {
+                workDir = config.volumeClaims.get(0).mountPath + "/scheduler";
+            }
+            log.info("Work directory not set. Using default: {}", workDir);
+            this.labelsLogger = new LabelsLogger(workDir);
+        } else {
+            this.labelsLogger = new LabelsLogger(config.workDir);
         }
-        this.labelsLogger = new LabelsLogger(config.workDir);
 
         if (!cpuSpeedEstimations.keySet().equals(memorySpeedEstimations.keySet())
                 || !cpuSpeedEstimations.keySet().equals(readSpeedEstimations.keySet())

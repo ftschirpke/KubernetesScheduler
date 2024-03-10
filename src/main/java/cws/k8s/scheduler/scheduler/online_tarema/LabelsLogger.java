@@ -18,6 +18,25 @@ public class LabelsLogger {
     private final File taskLabelsFile;
 
     public LabelsLogger(String workDir) {
+        if (workDir == null) {
+            log.error("Work directory for LabelsLogger is null");
+            nodeLabelsFile = null;
+            nodeEstimationsFile = null;
+            taskLabelsFile = null;
+            return;
+        }
+        File workDirFile = new File(workDir);
+        if (!workDirFile.exists()) {
+            boolean dirCreated = workDirFile.mkdirs();
+            if (!dirCreated) {
+                log.error("Failed to create work directory: {}", workDir);
+                nodeLabelsFile = null;
+                nodeEstimationsFile = null;
+                taskLabelsFile = null;
+                return;
+            }
+        }
+
         this.nodeLabelsFile = new File(String.format("%s/%s", workDir, NODE_LABELS_FILE));
         if (nodeLabelsFile.exists()) {
             nodeLabelsFile.delete();
@@ -64,6 +83,9 @@ public class LabelsLogger {
     }
 
     public void writeNodeLabels(Map<NodeWithAlloc, Integer> labels, String target, int iteration) {
+        if (nodeLabelsFile == null) {
+            return;
+        }
         StringBuilder sb = new StringBuilder();
         sb.append("{");
         sb.append("\"iteration\": ");
@@ -87,6 +109,9 @@ public class LabelsLogger {
     }
 
     public void writeNodeEstimations(Map<NodeWithAlloc, Double> estimations, String target, int iteration) {
+        if (nodeEstimationsFile == null) {
+            return;
+        }
         StringBuilder sb = new StringBuilder();
         sb.append("{");
         sb.append("\"iteration\": ");
@@ -110,6 +135,9 @@ public class LabelsLogger {
     }
 
     public void writeTaskLabels(Map<String, Integer> labels, String target, int iteration) {
+        if (taskLabelsFile == null) {
+            return;
+        }
         StringBuilder sb = new StringBuilder();
         sb.append("{");
         sb.append("\"iteration\": ");
