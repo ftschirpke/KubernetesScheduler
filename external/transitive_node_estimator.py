@@ -20,6 +20,11 @@ class TransitiveNodeEstimator(NodeEstimator):
         self.nodes: List[str] = []
         self.tasks: List[str] = []
 
+        self.unprocessed_samples = defaultdict(dict)
+        self.sample_pairs = defaultdict(dict)
+
+        self.lines_to_update = set()
+
         self.lines: Dict[str, Dict[str, Line]] = defaultdict(lambda: defaultdict(lambda: None))
         self.ranges: Dict[str, Dict[str, Range]] = defaultdict(lambda: defaultdict(lambda: None))
         self.data_counts: Dict[str, Dict[str, int]] = defaultdict(lambda: defaultdict(int))
@@ -46,6 +51,31 @@ class TransitiveNodeEstimator(NodeEstimator):
         self.weight_matrices_by_task[task] = np.zeros(shape, dtype=np.int32)
 
     def learn(self, sample: Dict) -> None:
+        node = sample[NODE]
+        task = sample[TASK]
+        if self.data_counts[task][node] > 0:
+            self._add_sample(sample)
+        elif node in self.unprocessed_samples[task].keys():
+            second_sample = self.unprocessed_samples[task].pop(node)
+            if task in self.tasks:
+                self._add_sample(sample)
+                self._add_sample(second_sample)
+            else:
+                self.sample_pairs[task][node] = (sample, second_sample)
+                if len(self.sample_pairs[task]) > 1:
+                    any_node_already_known = any((node in self.nodes) for node in self.sample_pairs[task].keys())
+                    if any_node_already_known or self.node_count() == 0:
+                        # add samples if they can be compared to each other
+                        for node, (s1, s2) in self.sample_pairs.pop(task).items():
+                            self._add_sample(s1)
+                            self._add_sample(s2)
+        else:
+            self.unprocessed_samples[task][node] = sample
+            return
+
+        self._update_lines()
+
+    def _add_sample(self, sample: Dict) -> None:
         if self.data is None:
             self.data = pd.DataFrame.from_dict({"row0": sample}, orient="index")
         else:
@@ -59,7 +89,9 @@ class TransitiveNodeEstimator(NodeEstimator):
             self._add_task(task)
 
         self.data_counts[task][node] += 1
+        self.lines_to_update.add((task, node))
 
+    def _update_lines(self) -> None:
         # TODO: remove these assertions:
         assert set(self.ratio_matrices_by_task.keys()) == set(self.tasks)
         assert set(self.weight_matrices_by_task.keys()) == set(self.tasks)
@@ -69,9 +101,11 @@ class TransitiveNodeEstimator(NodeEstimator):
         for mat in self.weight_matrices_by_task.values():
             assert mat.shape == wanted_shape
 
-        line_changed = self._update_line(task, node)
-        if line_changed:
-            self._update_ratios(task, node)
+        for task, node in self.lines_to_update:
+            line_changed = self._update_line(task, node)
+            if line_changed:
+                self._update_ratios(task, node)
+        self.lines_to_update.clear()
 
     def accumulated_ratios(self) -> np.array:
         shape = (self.node_count(), self.node_count())
@@ -92,8 +126,10 @@ class TransitiveNodeEstimator(NodeEstimator):
 
         # TODO: remove assertion and move if statement to the beginning
         assert self.data_counts[task][node] == len(data)
-        if self.data_counts[task][node] < 2:
-            return False
+        assert self.data_counts[task][node] >= 2
+        # TODO: remove if statement
+        # if self.data_counts[task][node] < 2:
+        #     return False
 
         model = BayesianRidge(alpha_init=1, lambda_init=0.001)
         x = data[FEATURE].values.reshape(-1, 1)
@@ -197,6 +233,7 @@ class TransitiveNodeEstimator(NodeEstimator):
                 ratios_calculated[start][dest] = True
                 ratios_calculated[dest][start] = True
 
+        # TODO: remove this assertion
         assert np.all(ratios_calculated)
         return accumulated_ratios
 
