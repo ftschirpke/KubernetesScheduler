@@ -56,17 +56,17 @@ class TransitiveNodeEstimator(NodeEstimator):
         if self.data_counts[task][node] > 0:
             self._add_sample(sample)
         elif node in self.unprocessed_samples[task].keys():
-            second_sample = self.unprocessed_samples[task].pop(node)
+            older_sample = self.unprocessed_samples[task].pop(node)
             if task in self.tasks:
+                self._add_sample(older_sample)
                 self._add_sample(sample)
-                self._add_sample(second_sample)
             else:
-                self.sample_pairs[task][node] = (sample, second_sample)
+                self.sample_pairs[task][node] = (older_sample, sample)
                 if len(self.sample_pairs[task]) > 1:
                     any_node_already_known = any((node in self.nodes) for node in self.sample_pairs[task].keys())
                     if any_node_already_known or self.node_count() == 0:
                         # add samples if they can be compared to each other
-                        for node, (s1, s2) in self.sample_pairs.pop(task).items():
+                        for s1, s2 in self.sample_pairs.pop(task).values():
                             self._add_sample(s1)
                             self._add_sample(s2)
         else:

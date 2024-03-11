@@ -22,10 +22,28 @@ class NaiveNodeEstimator(NodeEstimator):
         self.lines: Dict[str, Line] = defaultdict(lambda: None)
         self.ranges: Dict[str, Range] = defaultdict(lambda: None)
 
+        self.unprocessed_samples = {}
+        self.lines_to_update = set()
+
     def node_count(self) -> int:
         return len(self.nodes)
 
     def learn(self, sample: Dict) -> None:
+        node = sample[NODE]
+        if node in self.nodes:
+            self._add_sample(sample)
+        elif node in self.unprocessed_samples.keys():
+            self._add_sample(self.unprocessed_samples.pop(node))
+            self._add_sample(sample)
+        else:
+            self.unprocessed_samples[node] = sample
+            return
+
+        for node in self.lines_to_update:
+            self._update_line(node)
+        self.lines_to_update.clear()
+
+    def _add_sample(self, sample: Dict) -> None:
         if self.data is None:
             self.data = pd.DataFrame.from_dict({"row0": sample}, orient="index")
         else:
@@ -35,6 +53,9 @@ class NaiveNodeEstimator(NodeEstimator):
         if node not in self.nodes:
             self.nodes.append(node)
 
+        self.lines_to_update.add(node)
+
+    def _update_line(self, node: str) -> None:
         data = self.data[self.data[NODE] == node]
 
         model = BayesianRidge(alpha_init=1, lambda_init=0.001)
