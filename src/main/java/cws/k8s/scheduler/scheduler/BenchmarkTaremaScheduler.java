@@ -180,9 +180,11 @@ public class BenchmarkTaremaScheduler extends TaremaScheduler {
             log.error("Pod {} has no task associated. Skipping trace...", pod.getName());
             return;
         }
-        traces.saveTaskTrace(task);
+        boolean wasInserted = traces.saveTaskTrace(task).isPresent();
 
-        recalculateTaskLabels();
+        if (wasInserted) {
+            recalculateTaskLabels();
+        }
     }
 
     private synchronized void recalculateTaskLabels() {

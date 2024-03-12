@@ -3,12 +3,15 @@ package cws.k8s.scheduler.scheduler.nextflow_trace;
 import cws.k8s.scheduler.model.Task;
 import cws.k8s.scheduler.model.TaskConfig;
 import lombok.Getter;
+import lombok.extern.slf4j.Slf4j;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
+@Slf4j
 public class TraceStorage {
 
     @Getter
@@ -65,15 +68,23 @@ public class TraceStorage {
         return taskIds.size();
     }
 
-    public synchronized int saveTaskTrace(Task task) {
-        TraceRecord trace = TraceRecord.from_task(task);
+    public synchronized Optional<Integer> saveTaskTrace(Task task) {
         int taskId = task.getId();
+        if (taskIds.contains(taskId)) {
+            log.info("Task with ID: {} already exists in the trace storage", taskId);
+            return Optional.empty();
+        }
+        TraceRecord trace = TraceRecord.from_task(task);
         TaskConfig config = task.getConfig();
         String nodeName = task.getNode().getName();
         return saveTrace(trace, taskId, config, nodeName);
     }
 
-    public synchronized int saveTrace(TraceRecord trace, int taskId, TaskConfig config, String nodeName) {
+    public Optional<Integer> saveTrace(TraceRecord trace, int taskId, TaskConfig config, String nodeName) {
+        if (taskIds.contains(taskId)) {
+            log.info("Task with ID: {} already exists in the trace storage", taskId);
+            return Optional.empty();
+        }
         int nodeIndex = getNodeIndex(nodeName);
         nodeIndices.add(nodeIndex);
         String abstractTaskName = config.getTask();
@@ -99,7 +110,8 @@ public class TraceStorage {
         readBytesValues.add(trace.getMemoryValue("read_bytes"));
         writeBytesValues.add(trace.getMemoryValue("write_bytes"));
         realtimeValues.add(trace.getTimeValue("realtime"));
-        return index;
+        log.info("Task with ID: {} saved in the trace storage", taskId);
+        return Optional.of(index);
     }
 
     private static <T> Stream<T> getByIndex(int index, List<Integer> indexList, List<T> data) {

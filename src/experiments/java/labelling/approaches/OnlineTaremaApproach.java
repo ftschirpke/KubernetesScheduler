@@ -103,7 +103,11 @@ public class OnlineTaremaApproach<T extends Number & Comparable<T>> implements A
 
     @Override
     public void onTaskTermination(TraceRecord trace, TaskConfig config, String nodeName) {
-        int id = traceStorage.saveTrace(trace, nextTaskId, config, nodeName);
+        Optional<Integer> optionalId = traceStorage.saveTrace(trace, nextTaskId, config, nodeName);
+        if (optionalId.isEmpty()) {
+            return;
+        }
+        int id = optionalId.get();
         nextTaskId++;
 
         long charactersRead = traceStorage.getForId(id, LongField.CHARACTERS_READ);

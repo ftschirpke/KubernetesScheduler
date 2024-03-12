@@ -441,18 +441,13 @@ public abstract class Scheduler implements Informable {
 
     Map<NodeWithAlloc, Requirements> getAvailableByNode(){
         Map<NodeWithAlloc, Requirements> availableByNode = new HashMap<>();
-        List<String> logInfo = new LinkedList<>();
-        logInfo.add("------------------------------------");
         for (NodeWithAlloc item : getNodeList()) {
             if ( !item.isReady() ) {
                 continue;
             }
             final Requirements availableResources = item.getAvailableResources();
             availableByNode.put(item, availableResources);
-            logInfo.add("Node: " + item.getName() + " " + availableResources);
         }
-        logInfo.add("------------------------------------");
-        log.info(String.join("\n", logInfo));
         return availableByNode;
     }
 

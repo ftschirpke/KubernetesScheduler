@@ -68,8 +68,10 @@ public class BenchmarkTaremaApproach implements Approach {
 
     @Override
     public void onTaskTermination(TraceRecord trace, TaskConfig config, String nodeName) {
-        traceStorage.saveTrace(trace, nextTaskId, config, nodeName);
-        nextTaskId++;
+        boolean wasNew = traceStorage.saveTrace(trace, nextTaskId, config, nodeName).isPresent();
+        if (wasNew) {
+            nextTaskId++;
+        }
     }
 
     @Override

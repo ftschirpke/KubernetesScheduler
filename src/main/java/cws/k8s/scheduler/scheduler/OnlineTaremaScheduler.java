@@ -14,6 +14,7 @@ import lombok.extern.slf4j.Slf4j;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Optional;
 import java.util.function.Function;
 
 @Slf4j
@@ -103,7 +104,11 @@ public class OnlineTaremaScheduler extends TaremaScheduler {
             log.error("Pod {} has no task associated. Skipping trace...", pod.getName());
             return;
         }
-        int traceId = traces.saveTaskTrace(task);
+        Optional<Integer> optionalTraceId = traces.saveTaskTrace(task);
+        if (optionalTraceId.isEmpty()) {
+            return;
+        }
+        int traceId = optionalTraceId.get();
 
         NodeWithAlloc node = task.getNode();
         recalculateNodeLabelsWithNewSample(node.getName(), task.getConfig().getTask(), traceId);
