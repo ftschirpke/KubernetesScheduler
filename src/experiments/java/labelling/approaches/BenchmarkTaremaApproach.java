@@ -27,19 +27,19 @@ public class BenchmarkTaremaApproach implements Approach {
     int nextTaskId = 0;
     private final TraceStorage traceStorage = new TraceStorage();
 
-    private final NodeLabeller.LabelState cpuNodeLabelState;
+    private final Map<String, Integer> cpuNodeLabels;
     private final float[] cpuGroupWeights;
     private Map<String, Integer> cpuTaskLabels;
 
-    private final NodeLabeller.LabelState memoryNodeLabelState;
+    private final Map<String, Integer> memoryNodeLabels;
     private final float[] memoryGroupWeights;
     private Map<String, Integer> memoryTaskLabels;
 
-    private final NodeLabeller.LabelState readNodeLabelState;
+    private final Map<String, Integer> readNodeLabels;
     private final float[] readGroupWeights;
     private Map<String, Integer> readTaskLabels;
 
-    private final NodeLabeller.LabelState writeNodeLabelState;
+    private final Map<String, Integer> writeNodeLabels;
     private final float[] writeGroupWeights;
     private Map<String, Integer> writeTaskLabels;
 
@@ -50,15 +50,15 @@ public class BenchmarkTaremaApproach implements Approach {
     public BenchmarkTaremaApproach(double singlePointClusterScore) {
         name = String.format("BenchmarkTaremaApproach(%f)", singlePointClusterScore);
 
-        cpuNodeLabelState = NodeLabeller.labelOnce(LotaruTraces.cpuBenchmarks, true, singlePointClusterScore);
-        memoryNodeLabelState = NodeLabeller.labelOnce(LotaruTraces.memoryBenchmarks, true, singlePointClusterScore);
-        readNodeLabelState = NodeLabeller.labelOnce(LotaruTraces.readBenchmarks, true, singlePointClusterScore);
-        writeNodeLabelState = NodeLabeller.labelOnce(LotaruTraces.writeBenchmarks, true, singlePointClusterScore);
+        cpuNodeLabels = NodeLabeller.labelOnce(LotaruTraces.cpuBenchmarks, true, singlePointClusterScore);
+        memoryNodeLabels = NodeLabeller.labelOnce(LotaruTraces.memoryBenchmarks, true, singlePointClusterScore);
+        readNodeLabels = NodeLabeller.labelOnce(LotaruTraces.readBenchmarks, true, singlePointClusterScore);
+        writeNodeLabels = NodeLabeller.labelOnce(LotaruTraces.writeBenchmarks, true, singlePointClusterScore);
 
-        cpuGroupWeights = GroupWeights.forLabels(cpuNodeLabelState.maxLabel(), cpuNodeLabelState.labels());
-        memoryGroupWeights = GroupWeights.forLabels(memoryNodeLabelState.maxLabel(), memoryNodeLabelState.labels());
-        readGroupWeights = GroupWeights.forLabels(readNodeLabelState.maxLabel(), readNodeLabelState.labels());
-        writeGroupWeights = GroupWeights.forLabels(writeNodeLabelState.maxLabel(), writeNodeLabelState.labels());
+        cpuGroupWeights = GroupWeights.forLabels(cpuNodeLabels);
+        memoryGroupWeights = GroupWeights.forLabels(memoryNodeLabels);
+        readGroupWeights = GroupWeights.forLabels(readNodeLabels);
+        writeGroupWeights = GroupWeights.forLabels(writeNodeLabels);
 
         cpuTaskLabels = new HashMap<>();
         memoryTaskLabels = new HashMap<>();
@@ -80,20 +80,20 @@ public class BenchmarkTaremaApproach implements Approach {
         writeTaskLabels = TaskLabeller.taskLabels(traceStorage, LongField.CHARACTERS_WRITTEN, writeGroupWeights);
     }
 
-    private void printNodeState(String name, NodeLabeller.LabelState state) {
+    private void printResourceLabels(String name, Map<String, Integer> labels) {
         System.out.printf("%s -> ", name);
         for (String nodeName : LotaruTraces.getNodesIncludingLocal()) {
-            System.out.printf("%s(%d) ", nodeName, state.labels().get(nodeName));
+            System.out.printf("%s(%d) ", nodeName, labels.get(nodeName));
         }
         System.out.println();
     }
 
     @Override
     public void printNodeLabels() {
-        printNodeState("CPU  ", cpuNodeLabelState);
-        printNodeState("MEM  ", memoryNodeLabelState);
-        printNodeState("READ ", readNodeLabelState);
-        printNodeState("WRITE", writeNodeLabelState);
+        printResourceLabels("CPU  ", cpuNodeLabels);
+        printResourceLabels("MEM  ", memoryNodeLabels);
+        printResourceLabels("READ ", readNodeLabels);
+        printResourceLabels("WRITE", writeNodeLabels);
     }
 
     private void printTaskState(String name, Map<String, Integer> state) {
@@ -131,24 +131,28 @@ public class BenchmarkTaremaApproach implements Approach {
         }
         if (newlyCreated) {
             try (PrintWriter writer = new PrintWriter(nodeState)) {
-                writer.printf("CPU:   %d -> ", cpuNodeLabelState.maxLabel());
+                int cpuMaxLabel = cpuNodeLabels.values().stream().max(Integer::compareTo).orElse(0);
+                writer.printf("CPU:   %d -> ", cpuMaxLabel);
                 for (String nodeName : LotaruTraces.getNodesIncludingLocal()) {
-                    writer.printf("%s(%d) ", nodeName, cpuNodeLabelState.labels().get(nodeName));
+                    writer.printf("%s(%d) ", nodeName, cpuNodeLabels.get(nodeName));
                 }
                 writer.println();
-                writer.printf("MEM:   %d -> ", cpuNodeLabelState.maxLabel());
+                int memMaxLabel = memoryNodeLabels.values().stream().max(Integer::compareTo).orElse(0);
+                writer.printf("MEM:   %d -> ", memMaxLabel);
                 for (String nodeName : LotaruTraces.getNodesIncludingLocal()) {
-                    writer.printf("%s(%d) ", nodeName, cpuNodeLabelState.labels().get(nodeName));
+                    writer.printf("%s(%d) ", nodeName, memoryNodeLabels.get(nodeName));
                 }
                 writer.println();
-                writer.printf("READ:  %d -> ", cpuNodeLabelState.maxLabel());
+                int readMaxLabel = readNodeLabels.values().stream().max(Integer::compareTo).orElse(0);
+                writer.printf("READ:  %d -> ", readMaxLabel);
                 for (String nodeName : LotaruTraces.getNodesIncludingLocal()) {
-                    writer.printf("%s(%d) ", nodeName, cpuNodeLabelState.labels().get(nodeName));
+                    writer.printf("%s(%d) ", nodeName, readNodeLabels.get(nodeName));
                 }
                 writer.println();
-                writer.printf("WRITE: %d -> ", cpuNodeLabelState.maxLabel());
+                int writeMaxLabel = writeNodeLabels.values().stream().max(Integer::compareTo).orElse(0);
+                writer.printf("WRITE: %d -> ", writeMaxLabel);
                 for (String nodeName : LotaruTraces.getNodesIncludingLocal()) {
-                    writer.printf("%s(%d) ", nodeName, cpuNodeLabelState.labels().get(nodeName));
+                    writer.printf("%s(%d) ", nodeName, writeNodeLabels.get(nodeName));
                 }
                 writer.println();
             } catch (FileNotFoundException e) {

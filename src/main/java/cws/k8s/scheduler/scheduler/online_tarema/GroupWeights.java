@@ -8,16 +8,15 @@ import java.util.Map;
 import java.util.function.Function;
 
 public class GroupWeights {
-    public static <T> float[] forLabels(Integer maxLabel, Map<T, Integer> labels) {
-        return GroupWeights.forLabels(maxLabel, labels, node -> 1.0f);
+    public static <T> float[] forLabels(Map<T, Integer> labels) {
+        return GroupWeights.forLabels(labels, node -> 1.0f);
     }
 
-    public static <T> float[] forLabels(Integer maxLabel,
-                                        Map<T, Integer> labels,
-                                        Function<T, Float> keyWeight) {
-        if (maxLabel == null || labels == null || labels.isEmpty()) {
+    public static <T> float[] forLabels(Map<T, Integer> labels, Function<T, Float> keyWeight) {
+        if (labels == null || labels.isEmpty()) {
             return null;
         }
+        Integer maxLabel = labels.values().stream().max(Integer::compareTo).orElse(null);
 
         float totalWeights = 0;
         float[] weightsPerGroup = new float[maxLabel + 1];

@@ -65,7 +65,7 @@ public class TraceStorage {
         return taskIds.size();
     }
 
-    public int saveTaskTrace(Task task) {
+    public synchronized int saveTaskTrace(Task task) {
         TraceRecord trace = TraceRecord.from_task(task);
         int taskId = task.getId();
         TaskConfig config = task.getConfig();
@@ -73,7 +73,7 @@ public class TraceStorage {
         return saveTrace(trace, taskId, config, nodeName);
     }
 
-    public int saveTrace(TraceRecord trace, int taskId, TaskConfig config, String nodeName) {
+    public synchronized int saveTrace(TraceRecord trace, int taskId, TaskConfig config, String nodeName) {
         int nodeIndex = getNodeIndex(nodeName);
         nodeIndices.add(nodeIndex);
         String abstractTaskName = config.getTask();

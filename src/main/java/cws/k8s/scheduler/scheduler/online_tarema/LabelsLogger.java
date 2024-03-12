@@ -51,7 +51,7 @@ public class LabelsLogger {
     }
 
     // Writes content to a file in the work directory and returns true if it was successful.
-    private boolean writeToFile(String content, File file) {
+    private synchronized boolean writeToFile(String content, File file) {
         if (!file.exists()) {
             if (file.getParentFile() != null && !file.getParentFile().exists()) {
                 boolean parentsCreated = file.getParentFile().mkdirs();

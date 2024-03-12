@@ -21,7 +21,7 @@ class TransitiveNodeEstimator(NodeEstimator):
         self.tasks: List[str] = []
 
         self.unprocessed_samples = defaultdict(dict)
-        self.sample_pairs = defaultdict(dict)
+        self.ready_sample_groups = defaultdict(dict)
 
         self.lines_to_update = set()
 
@@ -56,21 +56,27 @@ class TransitiveNodeEstimator(NodeEstimator):
         if self.data_counts[task][node] > 0:
             self._add_sample(sample)
         elif node in self.unprocessed_samples[task].keys():
-            older_sample = self.unprocessed_samples[task].pop(node)
+            unique_feature_values = set(usample[FEATURE] for usample in self.unprocessed_samples[task][node])
+            unique_feature_values.add(sample[FEATURE])
+            if len(unique_feature_values) == 1:
+                self.unprocessed_samples[task][node].append(sample)
+                return
+            older_samples = self.unprocessed_samples[task].pop(node)
             if task in self.tasks:
-                self._add_sample(older_sample)
+                for older_sample in older_samples:
+                    self._add_sample(older_sample)
                 self._add_sample(sample)
             else:
-                self.sample_pairs[task][node] = (older_sample, sample)
-                if len(self.sample_pairs[task]) > 1:
-                    any_node_already_known = any((node in self.nodes) for node in self.sample_pairs[task].keys())
+                self.ready_sample_groups[task][node] = older_samples + [sample]
+                if len(self.ready_sample_groups[task]) > 1:
+                    any_node_already_known = any((node in self.nodes) for node in self.ready_sample_groups[task].keys())
                     if any_node_already_known or self.node_count() == 0:
                         # add samples if they can be compared to each other
-                        for s1, s2 in self.sample_pairs.pop(task).values():
-                            self._add_sample(s1)
-                            self._add_sample(s2)
+                        for sample_group in self.ready_sample_groups.pop(task).values():
+                            for s in sample_group:
+                                self._add_sample(s)
         else:
-            self.unprocessed_samples[task][node] = sample
+            self.unprocessed_samples[task][node] = [sample]
             return
 
         self._update_lines()

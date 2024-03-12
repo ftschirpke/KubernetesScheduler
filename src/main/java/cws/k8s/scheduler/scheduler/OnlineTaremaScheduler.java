@@ -96,7 +96,6 @@ public class OnlineTaremaScheduler extends TaremaScheduler {
     void onPodTermination(PodWithAge pod) {
         super.onPodTermination(pod);
 
-        log.info("Online Tarema Scheduler: Pod {} terminated. Saving its trace...", pod.getName());
         Task task;
         try {
             task = getTaskByPod(pod);
@@ -105,7 +104,6 @@ public class OnlineTaremaScheduler extends TaremaScheduler {
             return;
         }
         int traceId = traces.saveTaskTrace(task);
-        log.info("Online Tarema Scheduler: Pod {} trace saved.", pod.getName());
 
         NodeWithAlloc node = task.getNode();
         recalculateNodeLabelsWithNewSample(node.getName(), task.getConfig().getTask(), traceId);
@@ -133,11 +131,11 @@ public class OnlineTaremaScheduler extends TaremaScheduler {
         log.info("Online Tarema Scheduler: Node labels recalculated in {} ms.", endTime - startTime);
     }
 
-    private void recalculateTaskLabels() {
+    private synchronized void recalculateTaskLabels() {
         long startTime = System.currentTimeMillis();
 
         Function<String, Float> nodeWeight = nodeName -> GroupWeights.cpuNodeWeight(client.getNodeByName(nodeName));
-        float[] groupWeights = GroupWeights.forLabels(nodeLabeller.getMaxLabel(), nodeLabeller.getLabels(), nodeWeight);
+        float[] groupWeights = GroupWeights.forLabels(nodeLabeller.getLabels(), nodeWeight);
         taskLabels = TaskLabeller.logarithmicTaskLabels(traces, TARGET, groupWeights);
         labelsLogger.writeTaskLabels(taskLabels, TARGET.toString(), traces.size());
 

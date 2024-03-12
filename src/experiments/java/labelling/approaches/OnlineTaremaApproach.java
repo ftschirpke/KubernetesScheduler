@@ -116,9 +116,7 @@ public class OnlineTaremaApproach<T extends Number & Comparable<T>> implements A
         nodeLabeller.updateLabels();
 
         if (!nodeLabeller.getLabels().isEmpty()) {
-            float[] groupWeights = GroupWeights.forLabels(
-                    nodeLabeller.getMaxLabel(), nodeLabeller.getLabels(), LotaruTraces.nodeCpus::get);
-            // HACK: to change the target field, change the Weight here
+            float[] groupWeights = GroupWeights.forLabels(nodeLabeller.getLabels(), nodeWeight);
             taskLabels = TaskLabeller.logarithmicTaskLabels(traceStorage, target, groupWeights);
         }
     }

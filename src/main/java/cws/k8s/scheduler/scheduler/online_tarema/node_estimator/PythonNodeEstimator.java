@@ -27,7 +27,7 @@ public class PythonNodeEstimator implements NodeEstimator {
         }
     }
 
-    synchronized public <T extends Number> void addDataPoint(String nodeName, String taskName,
+    public synchronized <T extends Number> void addDataPoint(String nodeName, String taskName,
                                                              long rchar, T targetValue) {
         if (!nodeNames.contains(nodeName)) {
             log.error("Ignore attempt to add data point for unknown node: {}", nodeName);
@@ -39,7 +39,7 @@ public class PythonNodeEstimator implements NodeEstimator {
         ));
     }
 
-    synchronized public Map<String, Double> estimations() {
+    public synchronized Map<String, Double> estimations() {
         stdinWriter.println(String.format("{\"estimate\": %d, \"id\": %d}", nodeNames.size(), estimationsCounter));
         estimationsCounter++;
         String line;

@@ -14,9 +14,7 @@ import lombok.extern.slf4j.Slf4j;
 
 import java.util.HashMap;
 import java.util.Map;
-import java.util.Optional;
 import java.util.function.Function;
-import java.util.stream.Collectors;
 
 @Slf4j
 /*
@@ -30,19 +28,19 @@ public class BenchmarkTaremaScheduler extends TaremaScheduler {
 
     private final TraceStorage traces = new TraceStorage();
 
-    private final NodeLabeller.LabelState cpuNodeLabelState;
+    private final Map<String, Integer> cpuNodeLabels;
     private final float[] cpuGroupWeights;
     private Map<String, Integer> cpuTaskLabels = new HashMap<>();
 
-    private final NodeLabeller.LabelState memoryNodeLabelState;
+    private final Map<String, Integer> memoryNodeLabels;
     private final float[] memoryGroupWeights;
     private Map<String, Integer> memoryTaskLabels = new HashMap<>();
 
-    private final NodeLabeller.LabelState readNodeLabelState;
+    private final Map<String, Integer> readNodeLabels;
     private final float[] readGroupWeights;
     private Map<String, Integer> readTaskLabels = new HashMap<>();
 
-    private final NodeLabeller.LabelState writeNodeLabelState;
+    private final Map<String, Integer> writeNodeLabels;
     private final float[] writeGroupWeights;
     private Map<String, Integer> writeTaskLabels = new HashMap<>();
 
@@ -108,39 +106,23 @@ public class BenchmarkTaremaScheduler extends TaremaScheduler {
         labelsLogger.writeNodeEstimations(readSpeedEstimations, READ_TARGET.toString(), 0);
         labelsLogger.writeNodeEstimations(writeSpeedEstimations, WRITE_TARGET.toString(), 0);
 
-        cpuNodeLabelState = NodeLabeller.labelOnce(cpuSpeedEstimations, true, singlePointClusterScore);
-        memoryNodeLabelState = NodeLabeller.labelOnce(memorySpeedEstimations, true, singlePointClusterScore);
-        readNodeLabelState = NodeLabeller.labelOnce(readSpeedEstimations, true, singlePointClusterScore);
-        writeNodeLabelState = NodeLabeller.labelOnce(writeSpeedEstimations, true, singlePointClusterScore);
+        cpuNodeLabels = NodeLabeller.labelOnce(cpuSpeedEstimations, true, singlePointClusterScore);
+        memoryNodeLabels = NodeLabeller.labelOnce(memorySpeedEstimations, true, singlePointClusterScore);
+        readNodeLabels = NodeLabeller.labelOnce(readSpeedEstimations, true, singlePointClusterScore);
+        writeNodeLabels = NodeLabeller.labelOnce(writeSpeedEstimations, true, singlePointClusterScore);
 
-        labelsLogger.writeNodeLabels(cpuNodeLabelState.labels(), CPU_TARGET.toString(), 0);
-        labelsLogger.writeNodeLabels(memoryNodeLabelState.labels(), MEMORY_TARGET.toString(), 0);
-        labelsLogger.writeNodeLabels(readNodeLabelState.labels(), READ_TARGET.toString(), 0);
-        labelsLogger.writeNodeLabels(writeNodeLabelState.labels(), WRITE_TARGET.toString(), 0);
+        labelsLogger.writeNodeLabels(cpuNodeLabels, CPU_TARGET.toString(), 0);
+        labelsLogger.writeNodeLabels(memoryNodeLabels, MEMORY_TARGET.toString(), 0);
+        labelsLogger.writeNodeLabels(readNodeLabels, READ_TARGET.toString(), 0);
+        labelsLogger.writeNodeLabels(writeNodeLabels, WRITE_TARGET.toString(), 0);
 
         Function<String, Float> cpuNodeWeight = nodeName -> GroupWeights.cpuNodeWeight(client.getNodeByName(nodeName));
         Function<String, Float> memoryNodeWeight = nodeName -> GroupWeights.memoryNodeWeight(client.getNodeByName(nodeName));
 
-        cpuGroupWeights = GroupWeights.forLabels(cpuNodeLabelState.maxLabel(), cpuNodeLabelState.labels(), cpuNodeWeight);
-        memoryGroupWeights = GroupWeights.forLabels(memoryNodeLabelState.maxLabel(), memoryNodeLabelState.labels(), memoryNodeWeight);
-        readGroupWeights = GroupWeights.forLabels(readNodeLabelState.maxLabel(), readNodeLabelState.labels());
-        writeGroupWeights = GroupWeights.forLabels(writeNodeLabelState.maxLabel(), writeNodeLabelState.labels());
-    }
-
-    Map<NodeWithAlloc, Double> mapEstimationsToNodes(Map<String, Double> estimations) {
-        return estimations.entrySet().stream()
-                .map(entry -> {
-                    String nodeName = entry.getKey();
-                    Double estimation = entry.getValue();
-                    Optional<NodeWithAlloc> node = getNodeList().stream()
-                            .filter(n -> n.getName().equals(nodeName))
-                            .findFirst();
-                    if (node.isEmpty()) {
-                        throw new IllegalArgumentException("Found node estimations for non-existing node " + nodeName + ".");
-                    }
-                    return Map.entry(node.get(), estimation);
-                })
-                .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+        cpuGroupWeights = GroupWeights.forLabels(cpuNodeLabels, cpuNodeWeight);
+        memoryGroupWeights = GroupWeights.forLabels(memoryNodeLabels, memoryNodeWeight);
+        readGroupWeights = GroupWeights.forLabels(readNodeLabels);
+        writeGroupWeights = GroupWeights.forLabels(writeNodeLabels);
     }
 
     @Override
@@ -150,24 +132,24 @@ public class BenchmarkTaremaScheduler extends TaremaScheduler {
             // should not happen because TaremaScheduler checks for this already
             return Integer.MAX_VALUE;
         }
-        if (!cpuNodeLabelState.labels().containsKey(nodeName)) {
+        if (!cpuNodeLabels.containsKey(nodeName)) {
             // nodes without estimations are considered to be the slowest or not intended to be used
             return Integer.MAX_VALUE;
         }
-        int cpuDiff = Math.abs(cpuTaskLabels.get(taskName) - cpuNodeLabelState.labels().get(nodeName));
-        int memoryDiff = Math.abs(memoryTaskLabels.get(taskName) - memoryNodeLabelState.labels().get(nodeName));
-        int readDiff = Math.abs(readTaskLabels.get(taskName) - readNodeLabelState.labels().get(nodeName));
-        int writeDiff = Math.abs(writeTaskLabels.get(taskName) - writeNodeLabelState.labels().get(nodeName));
+        int cpuDiff = Math.abs(cpuTaskLabels.get(taskName) - cpuNodeLabels.get(nodeName));
+        int memoryDiff = Math.abs(memoryTaskLabels.get(taskName) - memoryNodeLabels.get(nodeName));
+        int readDiff = Math.abs(readTaskLabels.get(taskName) - readNodeLabels.get(nodeName));
+        int writeDiff = Math.abs(writeTaskLabels.get(taskName) - writeNodeLabels.get(nodeName));
         return cpuDiff + memoryDiff + readDiff + writeDiff;
     }
 
     @Override
     int nodeSpeed(NodeWithAlloc node) {
         String nodeName = node.getName();
-        return cpuNodeLabelState.labels().get(nodeName)
-                + memoryNodeLabelState.labels().get(nodeName)
-                + readNodeLabelState.labels().get(nodeName)
-                + writeNodeLabelState.labels().get(nodeName);
+        return cpuNodeLabels.get(nodeName)
+                + memoryNodeLabels.get(nodeName)
+                + readNodeLabels.get(nodeName)
+                + writeNodeLabels.get(nodeName);
     }
 
     @Override
@@ -186,7 +168,6 @@ public class BenchmarkTaremaScheduler extends TaremaScheduler {
     void onPodTermination(PodWithAge pod) {
         super.onPodTermination(pod);
 
-        log.info("Benchmark Tarema Scheduler: Pod {} terminated. Saving its trace...", pod.getName());
         Task task;
         try {
             task = getTaskByPod(pod);
@@ -195,12 +176,11 @@ public class BenchmarkTaremaScheduler extends TaremaScheduler {
             return;
         }
         traces.saveTaskTrace(task);
-        log.info("Benchmark Tarema Scheduler: Pod {} trace saved.", pod.getName());
 
         recalculateTaskLabels();
     }
 
-    void recalculateTaskLabels() {
+    private synchronized void recalculateTaskLabels() {
         long startTime = System.currentTimeMillis();
 
         cpuTaskLabels = TaskLabeller.taskLabels(traces, CPU_TARGET, cpuGroupWeights);

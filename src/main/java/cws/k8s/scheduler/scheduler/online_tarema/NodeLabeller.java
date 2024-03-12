@@ -17,8 +17,6 @@ import java.util.stream.IntStream;
 public class NodeLabeller {
     private final boolean higherIsBetter;
     @Getter
-    private Integer maxLabel = null;
-    @Getter
     private final Map<String, Integer> labels = new HashMap<>();
     @Getter
     private Map<String, Double> estimations = new HashMap<>();
@@ -36,22 +34,21 @@ public class NodeLabeller {
         this.higherIsBetter = higherIsBetter;
     }
 
-    public record LabelState(Integer maxLabel, Map<String, Integer> labels) {
-    }
-
-    public static LabelState labelOnce(Map<String, Double> estimations, boolean higherIsBetter) {
+    public static Map<String, Integer> labelOnce(Map<String, Double> estimations, boolean higherIsBetter) {
         return labelOnce(estimations, higherIsBetter, SilhouetteScore.DEFAULT_ONE_POINT_CLUSTER_SCORE);
     }
 
-    public static LabelState labelOnce(Map<String, Double> estimations,
-                                       boolean higherIsBetter,
-                                       double singlePointClusterScore) {
+    public static Map<String, Integer> labelOnce(Map<String, Double> estimations,
+                                                 boolean higherIsBetter,
+                                                 double singlePointClusterScore) {
         ConstantEstimator estimator = new ConstantEstimator(estimations);
         NodeLabeller labeller = new NodeLabeller(estimator, higherIsBetter, singlePointClusterScore);
         labeller.updateLabels();
-        Integer maxLabel = labeller.getMaxLabel();
-        Map<String, Integer> labels = labeller.getLabels();
-        return new LabelState(maxLabel, labels);
+        return labeller.getLabels();
+    }
+
+    public Integer getMaxLabel() {
+        return labels.values().stream().max(Integer::compareTo).orElse(null);
     }
 
     private Map<String, Integer> calculateNewLabels() {
@@ -112,7 +109,6 @@ public class NodeLabeller {
 
     private boolean recalculateLabelsFromEstimations() {
         Map<String, Integer> newLabels = calculateNewLabels();
-        Integer newMaxLabel = newLabels.values().stream().max(Integer::compareTo).orElse(null);
         boolean labelsChanged;
         synchronized (labels) {
             labelsChanged = !newLabels.equals(labels);
@@ -121,7 +117,6 @@ public class NodeLabeller {
                 labels.clear();
             }
             labels.putAll(newLabels);
-            maxLabel = newMaxLabel;
         }
         return labelsChanged;
     }

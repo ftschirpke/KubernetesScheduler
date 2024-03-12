@@ -22,7 +22,7 @@ public class SimpleBenchmarkTaremaScheduler extends TaremaScheduler {
     public static final LongField TARGET = LongField.REALTIME;
     private final TraceStorage traces = new TraceStorage();
 
-    private final NodeLabeller.LabelState nodeLabelState;
+    private final Map<String, Integer> nodeLabels;
     private final float[] groupWeights;
     private Map<String, Integer> taskLabels = new HashMap<>();
 
@@ -55,11 +55,11 @@ public class SimpleBenchmarkTaremaScheduler extends TaremaScheduler {
 
         labelsLogger.writeNodeEstimations(speedEstimations, TARGET.toString(), 0);
 
-        nodeLabelState = NodeLabeller.labelOnce(speedEstimations, true, singlePointClusterScore);
-        labelsLogger.writeNodeLabels(nodeLabelState.labels(), TARGET.toString(), 0);
+        nodeLabels = NodeLabeller.labelOnce(speedEstimations, true, singlePointClusterScore);
+        labelsLogger.writeNodeLabels(nodeLabels, TARGET.toString(), 0);
 
         Function<String, Float> nodeWeight = nodeName -> GroupWeights.cpuNodeWeight(client.getNodeByName(nodeName));
-        groupWeights = GroupWeights.forLabels(nodeLabelState.maxLabel(), nodeLabelState.labels(), nodeWeight);
+        groupWeights = GroupWeights.forLabels(nodeLabels, nodeWeight);
     }
 
     @Override
@@ -69,7 +69,7 @@ public class SimpleBenchmarkTaremaScheduler extends TaremaScheduler {
             // should not happen because TaremaScheduler checks for this already
             return Integer.MAX_VALUE;
         }
-        Integer nodeLabel = nodeLabelState.labels().get(nodeName);
+        Integer nodeLabel = nodeLabels.get(nodeName);
         if (nodeLabel == null) {
             // nodes without estimations are considered to be the slowest or not intended to be used
             return Integer.MAX_VALUE;
@@ -80,7 +80,7 @@ public class SimpleBenchmarkTaremaScheduler extends TaremaScheduler {
 
     @Override
     int nodeSpeed(NodeWithAlloc node) {
-        return nodeLabelState.labels().get(node.getName());
+        return nodeLabels.get(node.getName());
     }
 
     @Override
@@ -96,7 +96,6 @@ public class SimpleBenchmarkTaremaScheduler extends TaremaScheduler {
     void onPodTermination(PodWithAge pod) {
         super.onPodTermination(pod);
 
-        log.info("Benchmark Tarema Scheduler: Pod {} terminated. Saving its trace...", pod.getName());
         Task task;
         try {
             task = getTaskByPod(pod);
@@ -105,12 +104,11 @@ public class SimpleBenchmarkTaremaScheduler extends TaremaScheduler {
             return;
         }
         traces.saveTaskTrace(task);
-        log.info("Benchmark Tarema Scheduler: Pod {} trace saved.", pod.getName());
 
         recalculateTaskLabels();
     }
 
-    void recalculateTaskLabels() {
+    private synchronized void recalculateTaskLabels() {
         long startTime = System.currentTimeMillis();
 
         taskLabels = TaskLabeller.logarithmicTaskLabels(traces, TARGET, groupWeights);
