@@ -72,7 +72,6 @@ public abstract class TaremaScheduler extends Scheduler {
         ArrayList<NodeTaskAlignment> alignment = new ArrayList<>();
         for (final Task task : unscheduledTasks) {
             final PodWithAge pod = task.getPod();
-            log.info("Pod: " + pod.getName() + " Requested Resources: " + pod.getRequest());
             String abstractTaskName = task.getConfig().getTask();
             int triedOnNodes = 0;
             NodeWithAlloc bestNode = null;

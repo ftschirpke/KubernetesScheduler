@@ -33,10 +33,17 @@ class NaiveNodeEstimator(NodeEstimator):
         if node in self.nodes:
             self._add_sample(sample)
         elif node in self.unprocessed_samples.keys():
-            self._add_sample(self.unprocessed_samples.pop(node))
+            unique_feature_values = set(older_sample[FEATURE] for older_sample in self.unprocessed_samples[node])
+            unique_feature_values.add(sample[FEATURE])
+            if len(unique_feature_values) == 1:
+                self.unprocessed_samples[node].append(sample)
+                return
+            older_samples = self.unprocessed_samples.pop(node)
+            for older_sample in older_samples:
+                self._add_sample(older_sample)
             self._add_sample(sample)
         else:
-            self.unprocessed_samples[node] = sample
+            self.unprocessed_samples[node] = [sample]
             return
 
         for node in self.lines_to_update:

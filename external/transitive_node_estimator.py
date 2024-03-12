@@ -56,7 +56,7 @@ class TransitiveNodeEstimator(NodeEstimator):
         if self.data_counts[task][node] > 0:
             self._add_sample(sample)
         elif node in self.unprocessed_samples[task].keys():
-            unique_feature_values = set(usample[FEATURE] for usample in self.unprocessed_samples[task][node])
+            unique_feature_values = set(older_sample[FEATURE] for older_sample in self.unprocessed_samples[task][node])
             unique_feature_values.add(sample[FEATURE])
             if len(unique_feature_values) == 1:
                 self.unprocessed_samples[task][node].append(sample)

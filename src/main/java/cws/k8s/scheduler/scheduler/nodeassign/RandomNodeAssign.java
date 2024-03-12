@@ -18,7 +18,6 @@ public class RandomNodeAssign extends NodeAssign {
         final ArrayList<Map.Entry<NodeWithAlloc, Requirements>> entries = new ArrayList<>( availableByNode.entrySet() );
         for ( final Task task : unscheduledTasks ) {
             final PodWithAge pod = task.getPod();
-            log.info("Pod: " + pod.getName() + " Requested Resources: " + pod.getRequest() );
             Collections.shuffle( entries );
             boolean assigned = false;
             int nodesTried = 0;

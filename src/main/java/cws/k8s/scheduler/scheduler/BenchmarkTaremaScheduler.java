@@ -111,6 +111,11 @@ public class BenchmarkTaremaScheduler extends TaremaScheduler {
         readNodeLabels = NodeLabeller.labelOnce(readSpeedEstimations, true, singlePointClusterScore);
         writeNodeLabels = NodeLabeller.labelOnce(writeSpeedEstimations, true, singlePointClusterScore);
 
+        log.info("CPU Node Labels calculated: {}", cpuNodeLabels);
+        log.info("Memory Node Labels calculated: {}", memoryNodeLabels);
+        log.info("Read Node Labels calculated: {}", readNodeLabels);
+        log.info("Write Node Labels calculated: {}", writeNodeLabels);
+
         labelsLogger.writeNodeLabels(cpuNodeLabels, CPU_TARGET.toString(), 0);
         labelsLogger.writeNodeLabels(memoryNodeLabels, MEMORY_TARGET.toString(), 0);
         labelsLogger.writeNodeLabels(readNodeLabels, READ_TARGET.toString(), 0);

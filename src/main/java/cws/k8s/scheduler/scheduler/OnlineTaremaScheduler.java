@@ -124,6 +124,7 @@ public class OnlineTaremaScheduler extends TaremaScheduler {
             labelsLogger.writeNodeEstimations(nodeLabeller.getEstimations(), TARGET.toString(), traces.size());
         }
         if (labelsChanged) {
+            log.info("New Node Labels calculated: {}", nodeLabeller.getLabels());
             labelsLogger.writeNodeLabels(nodeLabeller.getLabels(), TARGET.toString(), traces.size());
         }
 
