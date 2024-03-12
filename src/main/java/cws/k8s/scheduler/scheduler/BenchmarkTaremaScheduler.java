@@ -177,7 +177,7 @@ public class BenchmarkTaremaScheduler extends TaremaScheduler {
         try {
             task = getTaskByPod(pod);
         } catch (IllegalStateException e) {
-            log.error("Benchmark Tarema Scheduler: Pod {} has no task associated. Skipping trace...", pod.getName());
+            log.error("Pod {} has no task associated. Skipping trace...", pod.getName());
             return;
         }
         traces.saveTaskTrace(task);
@@ -199,7 +199,7 @@ public class BenchmarkTaremaScheduler extends TaremaScheduler {
         labelsLogger.writeTaskLabels(writeTaskLabels, WRITE_TARGET.toString(), traces.size());
 
         long endTime = System.currentTimeMillis();
-        log.info("Benchmark Tarema Scheduler: Task labels recalculated in {} ms.", endTime - startTime);
+        log.info("Task labels recalculated in {} ms.", endTime - startTime);
     }
 
 

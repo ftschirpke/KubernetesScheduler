@@ -23,7 +23,12 @@ ESTIMATE_KEYS = set(["estimate", "id"])
 
 
 def main_loop(estimator: NodeEstimator) -> None:
+    with open("/input/scheduler/node_estimator_input.txt", "w") as f:
+        f.write("=== START ===\n")
     for line in sys.stdin:
+        with open("/input/scheduler/node_estimator_input.txt", "a") as f:
+            f.write(line)
+
         data = json.loads(line)
 
         keys = set(data.keys())

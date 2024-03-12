@@ -100,7 +100,7 @@ public class OnlineTaremaScheduler extends TaremaScheduler {
         try {
             task = getTaskByPod(pod);
         } catch (IllegalStateException e) {
-            log.error("Online Tarema Scheduler: Pod {} has no task associated. Skipping trace...", pod.getName());
+            log.error("Pod {} has no task associated. Skipping trace...", pod.getName());
             return;
         }
         int traceId = traces.saveTaskTrace(task);
@@ -129,7 +129,7 @@ public class OnlineTaremaScheduler extends TaremaScheduler {
         }
 
         long endTime = System.currentTimeMillis();
-        log.info("Online Tarema Scheduler: Node labels recalculated in {} ms.", endTime - startTime);
+        log.info("Node labels recalculated in {} ms.", endTime - startTime);
     }
 
     private synchronized void recalculateTaskLabels() {
@@ -141,6 +141,6 @@ public class OnlineTaremaScheduler extends TaremaScheduler {
         labelsLogger.writeTaskLabels(taskLabels, TARGET.toString(), traces.size());
 
         long endTime = System.currentTimeMillis();
-        log.info("Online Tarema Scheduler: Task labels recalculated in {} ms.", endTime - startTime);
+        log.info("ask labels recalculated in {} ms.", endTime - startTime);
     }
 }
