@@ -50,7 +50,11 @@ public class FairAssign extends NodeAssign {
                 traceRecord.setSchedulerNodesCost( costs );
                 alignment.add( new NodeTaskAlignment( bestNode, task ) );
                 availableByNode.get( bestNode ).subFromThis( pod.getRequest() );
-                log.info( "--> " + bestNode.getName() );
+                log.info("Pod: " + pod.getName() + " Requested Resources: " + pod.getRequest()
+                        + "--> " + bestNode.getName() );
+            } else {
+                log.info("Pod: " + pod.getName() + " Requested Resources: " + pod.getRequest()
+                        + "--- not assigned" );
             }
         }
         return alignment;

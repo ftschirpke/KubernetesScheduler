@@ -106,6 +106,7 @@ public class SimpleBenchmarkTaremaScheduler extends TaremaScheduler {
         boolean wasInserted = traces.saveTaskTrace(task).isPresent();
 
         if (wasInserted) {
+            log.info("Saved traces for pod {}.", pod.getName());
             recalculateTaskLabels();
         }
     }

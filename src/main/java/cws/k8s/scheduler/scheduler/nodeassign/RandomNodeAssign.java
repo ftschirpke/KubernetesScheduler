@@ -27,7 +27,8 @@ public class RandomNodeAssign extends NodeAssign {
                     nodesTried++;
                     alignment.add(new NodeTaskAlignment( node, task));
                     availableByNode.get( node ).subFromThis(pod.getRequest());
-                    log.info("--> " + node.getName());
+                    log.info("Pod: " + pod.getName() + " Requested Resources: " + pod.getRequest()
+                            + "--> " + node.getName() );
                     assigned = true;
                     task.getTraceRecord().foundAlignment();
                     break;
@@ -36,6 +37,8 @@ public class RandomNodeAssign extends NodeAssign {
             task.getTraceRecord().setSchedulerNodesTried( nodesTried );
             if ( !assigned ) {
                 log.trace( "No node with enough resources for {}", pod.getName() );
+                log.info("Pod: " + pod.getName() + " Requested Resources: " + pod.getRequest()
+                        + "--- not assigned" );
             }
         }
         return alignment;

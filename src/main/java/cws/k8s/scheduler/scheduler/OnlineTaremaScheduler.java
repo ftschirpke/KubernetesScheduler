@@ -108,6 +108,7 @@ public class OnlineTaremaScheduler extends TaremaScheduler {
         if (optionalTraceId.isEmpty()) {
             return;
         }
+        log.info("Saved traces for pod {}.", pod.getName());
         int traceId = optionalTraceId.get();
 
         NodeWithAlloc node = task.getNode();
@@ -146,6 +147,6 @@ public class OnlineTaremaScheduler extends TaremaScheduler {
         labelsLogger.writeTaskLabels(taskLabels, TARGET.toString(), traces.size());
 
         long endTime = System.currentTimeMillis();
-        log.info("ask labels recalculated in {} ms.", endTime - startTime);
+        log.info("Task labels recalculated in {} ms.", endTime - startTime);
     }
 }
