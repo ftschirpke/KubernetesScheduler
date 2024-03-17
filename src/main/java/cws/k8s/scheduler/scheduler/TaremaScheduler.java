@@ -16,6 +16,10 @@ import java.util.*;
 
 @Slf4j
 public abstract class TaremaScheduler extends Scheduler {
+
+    private static final int TASK_TESTING_COUNT = 3;
+    private final Map<String, Integer> abstractTaskScheduleCounts = new HashMap<>();
+
     private final Prioritize minInputPrioritize = new MinInputPrioritize();
     private final Prioritize minRankPrioritize = new RankMinPrioritize();
     private final NodeAssign randomNodeAssign = new RandomNodeAssign();
@@ -36,6 +40,43 @@ public abstract class TaremaScheduler extends Scheduler {
 
     abstract boolean nodeLabelsReady();
 
+    /*
+     * This method extracts a list of prioritized tasks which are tasks not executed TASK_TESTING_COUNT times yet.
+     * Scheduling these tasks first helps to gather more information about the tasks earlier.
+     */
+    private List<Task> extractPrioritizedTask(final List<Task> unscheduledTasks) {
+        Map<String, List<Task>> tasksOfUnknownAbstractTasks = new HashMap<>();
+        for (Task task : unscheduledTasks) {
+            String abstractTaskName = task.getConfig().getTask();
+            if (taskIsKnown(abstractTaskName)
+                    || abstractTaskScheduleCounts.getOrDefault(abstractTaskName, 0) >= TASK_TESTING_COUNT) {
+                continue;
+            }
+            tasksOfUnknownAbstractTasks.computeIfAbsent(abstractTaskName, k -> new ArrayList<>()).add(task);
+        }
+        tasksOfUnknownAbstractTasks.forEach((key, value) -> minInputPrioritize.sortTasks(value));
+
+        List<Task> prioritizedTasks = tasksOfUnknownAbstractTasks.entrySet().stream()
+                .map(entry -> {
+                    String abstractTaskName = entry.getKey();
+                    List<Task> tasks = entry.getValue();
+                    int toTest = TASK_TESTING_COUNT - abstractTaskScheduleCounts.getOrDefault(abstractTaskName, 0);
+                    if (tasks.size() <= toTest) {
+                        return tasks;
+                    }
+                    while (tasks.size() > toTest) {
+                        tasks.remove(tasks.size() / 2); // remove from the middle to keep the extremes
+                    }
+                    return tasks;
+                })
+                .flatMap(Collection::stream)
+                .toList();
+
+        minRankPrioritize.sortTasks(prioritizedTasks);
+        unscheduledTasks.removeAll(prioritizedTasks);
+        return prioritizedTasks;
+    }
+
     @Override
     public ScheduleObject getTaskNodeAlignment(final List<Task> unscheduledTasks, final Map<NodeWithAlloc, Requirements> availableByNode) {
         long start = System.currentTimeMillis();
@@ -51,11 +92,19 @@ public abstract class TaremaScheduler extends Scheduler {
             minInputPrioritize.sortTasks(unscheduledTasks);
             alignments = randomNodeAssign.getTaskNodeAlignment(unscheduledTasks, availableByNode);
         } else {
+            List<Task> prioritizedTasks = extractPrioritizedTask(unscheduledTasks);
+            // first schedule tasks we don't know much about yet
+            alignments = alignUsingLabels(prioritizedTasks, availableByNode);
+            // then schedule the rest
             minRankPrioritize.sortTasks(unscheduledTasks);
-            alignments = alignUsingLabels(unscheduledTasks, availableByNode);
+            alignments.addAll(alignUsingLabels(unscheduledTasks, availableByNode));
         }
 
-        alignments.forEach(alignment -> usedNodes.add(alignment.node.getName()));
+        alignments.forEach(alignment -> {
+            usedNodes.add(alignment.node.getName());
+            String abstractTaskName = alignment.task.getConfig().getTask();
+            abstractTaskScheduleCounts.merge(abstractTaskName, 1, Integer::sum);
+        });
 
         long timeDelta = System.currentTimeMillis() - start;
         for (Task unscheduledTask : unscheduledTasks) {
