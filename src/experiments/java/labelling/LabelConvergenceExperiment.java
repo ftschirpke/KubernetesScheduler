@@ -10,7 +10,7 @@ import labelling.approaches.OnlineTaremaApproach;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.ArrayUtils;
 
-import java.io.File;
+import java.io.*;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -48,7 +48,7 @@ public class LabelConvergenceExperiment {
             System.exit(1);
         }
 
-        double[] scores = {0.5, 0.66, 0.8, 0.9};
+        double[] scores = {0, 0.5, 0.66, 0.8, 0.9};
         TraceField<Long> target = LongField.REALTIME;
         Function<String, Float> nodeWeight = LotaruTraces.nodeCpus::get;
         boolean higherIsBetter = false;
@@ -146,6 +146,9 @@ public class LabelConvergenceExperiment {
             String nodeName = LotaruTraces.machineNames.get(machineName);
             TaskConfig config = lotaruTraces.taskConfigFromLine(line);
             TraceRecord trace = lotaruTraces.taskTraceFromLine(line);
+            if (writeState) {
+                writeDataLine(line);
+            }
             for (Approach approach : approaches) {
                 approach.onTaskTermination(trace, config, nodeName);
                 approach.recalculate();
@@ -154,14 +157,44 @@ public class LabelConvergenceExperiment {
                 }
             }
         });
-        log.info("Finished running approaches.");
-        for (Approach approach : approaches) {
-            System.out.printf("----- Approach %s -----\n", approach.getName());
-            approach.printNodeLabels();
+       // log.info("Finished running approaches.");
+       // for (Approach approach : approaches) {
+       //     System.out.printf("----- Approach %s -----\n", approach.getName());
+       //     approach.printNodeLabels();
+       // }
+       // for (Approach approach : approaches) {
+       //     System.out.printf("----- Approach %s -----\n", approach.getName());
+       //     approach.printTaskLabels();
+       // }
+    }
+
+    void writeDataLine(final String[] line) {
+        File dir = new File(experimentDir);
+        if (!dir.exists()) {
+            boolean success = dir.mkdirs();
+            if (!success) {
+                log.error("Could not create directory {}", dir);
+                System.exit(1);
+            }
         }
-        for (Approach approach : approaches) {
-            System.out.printf("----- Approach %s -----\n", approach.getName());
-            approach.printTaskLabels();
+
+        boolean newlyCreated;
+        File rawDataFile = new File(String.format("%s/raw_data.csv", experimentDir));
+        try {
+            newlyCreated = rawDataFile.createNewFile();
+        } catch (IOException e) {
+            throw new RuntimeException(e);
         }
+        try (PrintWriter writer = new PrintWriter(new FileOutputStream(rawDataFile, true))) {
+            if (newlyCreated) {
+                String header = String.join(",", lotaruTraces.csvHeader);
+                writer.println(header);
+            }
+            writer.println(String.join(",", line));
+        } catch (FileNotFoundException e) {
+            log.error("File {} does not exist", rawDataFile);
+            System.exit(1);
+        }
+
     }
 }

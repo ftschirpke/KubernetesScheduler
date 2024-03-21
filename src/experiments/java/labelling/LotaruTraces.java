@@ -214,7 +214,6 @@ public class LotaruTraces {
             String nodeName = nodeDir.getName();
             int index = ArrayUtils.indexOf(nodes, nodeName);
             if (index == -1) {
-                log.info("Skipping directory {} as it is not in the list of nodes", nodeName);
                 continue;
             }
             if (nodeDir.isDirectory()) {
@@ -251,13 +250,13 @@ public class LotaruTraces {
                     }
                     List<String[]> data = new ArrayList<>();
                     while ((line = reader.readLine()) != null) {
-                        if (!line.startsWith(experimentLabel)) {
-                            continue;
-                        }
                         String[] dataLine = line.split(",");
                         String taskName = getFromLine("Task", dataLine);
                         if (!taskNames.contains(taskName)) {
                             taskNames.add(taskName);
+                        }
+                        if (!line.startsWith(experimentLabel)) {
+                            continue;
                         }
                         data.add(dataLine);
                     }
