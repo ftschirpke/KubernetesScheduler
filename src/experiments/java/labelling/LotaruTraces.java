@@ -23,7 +23,7 @@ public class LotaruTraces {
         return new Requirements(cpu, mem);
     }
 
-    private static final String[] nodes = new String[]{"local", "a1", "a2", "n1", "n2", "c2"};
+    static final String[] nodes = new String[]{"local", "a1", "a2", "n1", "n2", "c2"};
     public static Map<String, Float> nodeCpus = new HashMap<>(
             Map.of(
                     nodes[0], 8f,
