@@ -15,9 +15,15 @@ public class PythonNodeEstimator implements NodeEstimator {
     private final Set<String> nodeNames;
 
     public PythonNodeEstimator(String pythonScriptPath, Set<String> nodeNames) {
+        this(pythonScriptPath, nodeNames, 0);
+    }
+
+    public PythonNodeEstimator(String pythonScriptPath, Set<String> nodeNames, int randomSeed) {
         this.nodeNames = nodeNames;
         try {
-            Process pythonProcess = new ProcessBuilder("external/venv/bin/python3", pythonScriptPath).start();
+            Process pythonProcess = new ProcessBuilder(
+                    "external/venv/bin/python3", pythonScriptPath, Integer.toString(randomSeed)
+            ).start();
             this.stdoutReader = new BufferedReader(new InputStreamReader(pythonProcess.getInputStream()));
             this.stderrReader = new BufferedReader(new InputStreamReader(pythonProcess.getErrorStream()));
             this.stdinWriter = new PrintWriter(new OutputStreamWriter(pythonProcess.getOutputStream()), true);

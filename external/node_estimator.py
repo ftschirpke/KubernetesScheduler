@@ -5,6 +5,8 @@ from abc import ABC
 from dataclasses import dataclass
 from typing import Dict
 
+import numpy as np
+
 
 class NodeEstimator(ABC):
 
@@ -25,6 +27,10 @@ ESTIMATE_KEYS = set(["estimate", "id"])
 def main_loop(estimator: NodeEstimator) -> None:
     with open("/input/scheduler/node_estimator_input.txt", "w") as f:
         pass
+    if len(sys.argv) == 2:
+        seed_number = int(sys.argv[1])
+        np.random.seed(seed_number)
+
     for line in sys.stdin:
         with open("/input/scheduler/node_estimator_input.txt", "a") as f:
             f.write(line)
