@@ -12,10 +12,7 @@ import org.apache.commons.lang3.ArrayUtils;
 
 import java.io.*;
 import java.text.SimpleDateFormat;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
-import java.util.Set;
+import java.util.*;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -49,8 +46,9 @@ public class LabelConvergenceExperiment {
         }
 
         double[] scores = {0, 0.5, 0.66, 0.8, 0.9};
-        TraceField<Long> target = LongField.REALTIME;
-        Function<String, Float> nodeWeight = LotaruTraces.nodeCpus::get;
+        TraceField<Long> target = LongField.CHARACTERS_READ;
+        // Function<String, Float> nodeWeight = LotaruTraces.nodeGigabyteMemory::get;
+        Function<String, Float> nodeWeight = s -> 1.0f;
         boolean higherIsBetter = false;
 
         boolean writeState = true;
@@ -60,7 +58,7 @@ public class LabelConvergenceExperiment {
 
         for (double singlePointClusterScore : scores) {
             String localStr = includeLocal ? "local" : "nolocal";
-            String fullString = String.format("%s/%s-%d", timeString, localStr, (int) (singlePointClusterScore * 100.0));
+            String fullString = String.format("%s-rchar/%s-%d", timeString, localStr, (int) (singlePointClusterScore * 100.0));
 
             for (String experimentName : LotaruTraces.experiments) {
                 for (String label : LotaruTraces.labels) {
@@ -82,8 +80,23 @@ public class LabelConvergenceExperiment {
                                                                      boolean writeState) {
         LabelConvergenceExperiment experiment = new LabelConvergenceExperiment(experimentName, label, dirString, writeState);
         experiment.initializeTraces(lotaruTracesDir);
-        experiment.setApproaches(target, nodeWeight, higherIsBetter, singlePointClusterScore);
-        experiment.run();
+        Map<String, Map<String, Integer>> counts = new HashMap<>();
+        experiment.lotaruTraces.allLinesByTask(true).forEach(
+                line -> {
+                    String task = experiment.lotaruTraces.getFromLine("Task", line);
+                    String node = experiment.lotaruTraces.getFromLine("Machine", line);
+                    if (!counts.containsKey(task)) {
+                        counts.put(task, new HashMap<>());
+                    }
+                    counts.get(task).merge(node, 1, Integer::sum);
+                }
+        );
+        log.info("{} {}", experimentName, label);
+        for (String task : counts.keySet()) {
+            log.info("{} ({})", counts.get(task), task);
+        }
+       // experiment.setApproaches(target, nodeWeight, higherIsBetter, singlePointClusterScore);
+       // experiment.run();
     }
 
     LabelConvergenceExperiment(String experimentName, String experimentLabel, String dirString, boolean writeState) {
@@ -157,15 +170,15 @@ public class LabelConvergenceExperiment {
                 }
             }
         });
-       // log.info("Finished running approaches.");
-       // for (Approach approach : approaches) {
-       //     System.out.printf("----- Approach %s -----\n", approach.getName());
-       //     approach.printNodeLabels();
-       // }
-       // for (Approach approach : approaches) {
-       //     System.out.printf("----- Approach %s -----\n", approach.getName());
-       //     approach.printTaskLabels();
-       // }
+        // log.info("Finished running approaches.");
+        // for (Approach approach : approaches) {
+        //     System.out.printf("----- Approach %s -----\n", approach.getName());
+        //     approach.printNodeLabels();
+        // }
+        // for (Approach approach : approaches) {
+        //     System.out.printf("----- Approach %s -----\n", approach.getName());
+        //     approach.printTaskLabels();
+        // }
     }
 
     void writeDataLine(final String[] line) {
