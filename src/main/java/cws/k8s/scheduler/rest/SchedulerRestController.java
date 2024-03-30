@@ -120,20 +120,20 @@ public class SchedulerRestController {
                 break;
             case "benchmark_tarema":
                 Map<String, Double> cpuEstimations = Map.of(
-                        "hu-worker-c29", 559.98, "hu-worker-c40", 790.35,
-                        "hu-worker-c42", 954.61, "hu-worker-c43", 954.95
+                        "hu-worker-c29", 559.98, "hu-worker-c40", 724.90,
+                        "hu-worker-c38", 955.90, "hu-worker-c43", 954.95
                 );
                 Map<String, Double> memEstimations = Map.of(
-                        "hu-worker-c29", 12527.77, "hu-worker-c40", 17696.05,
-                        "hu-worker-c42", 21442.84, "hu-worker-c43", 21432.30
+                        "hu-worker-c29", 12527.77, "hu-worker-c40", 16085.38,
+                        "hu-worker-c38", 21443.44, "hu-worker-c43", 21432.30
                 );
                 Map<String, Double> seqReadEstimations = Map.of(
-                        "hu-worker-c29", 534.0, "hu-worker-c40", 673.0,
-                        "hu-worker-c42", 687.0, "hu-worker-c43", 693.0
+                        "hu-worker-c29", 715.0, "hu-worker-c40", 678.0,
+                        "hu-worker-c38", 674.0, "hu-worker-c43", 692.0
                 );
                 Map<String, Double> seqWriteEstimations = Map.of(
-                        "hu-worker-c29", 533.0, "hu-worker-c40", 673.0,
-                        "hu-worker-c42", 687.0, "hu-worker-c43", 692.0
+                        "hu-worker-c29", 715.0, "hu-worker-c40", 677.0,
+                        "hu-worker-c42", 674.0, "hu-worker-c43", 692.0
                 );
                 scheduler = new BenchmarkTaremaScheduler(execution, client, namespace, config,
                         cpuEstimations, memEstimations, seqReadEstimations, seqWriteEstimations,
