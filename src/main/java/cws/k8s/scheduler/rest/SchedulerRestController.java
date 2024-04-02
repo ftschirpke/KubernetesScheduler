@@ -121,19 +121,19 @@ public class SchedulerRestController {
             case "benchmark_tarema":
                 Map<String, Double> cpuEstimations = Map.of(
                         "hu-worker-c29", 559.98, "hu-worker-c40", 724.90,
-                        "hu-worker-c38", 955.90, "hu-worker-c43", 954.95
+                        "hu-worker-c23", 955.20, "hu-worker-c43", 954.95
                 );
                 Map<String, Double> memEstimations = Map.of(
                         "hu-worker-c29", 12527.77, "hu-worker-c40", 16085.38,
-                        "hu-worker-c38", 21443.44, "hu-worker-c43", 21432.30
+                        "hu-worker-c23", 21442.25, "hu-worker-c43", 21432.30
                 );
                 Map<String, Double> seqReadEstimations = Map.of(
-                        "hu-worker-c29", 715.0, "hu-worker-c40", 678.0,
-                        "hu-worker-c38", 674.0, "hu-worker-c43", 692.0
+                        "hu-worker-c29", 712.0, "hu-worker-c40", 679.0,
+                        "hu-worker-c23", 714.0, "hu-worker-c43", 697.0
                 );
                 Map<String, Double> seqWriteEstimations = Map.of(
-                        "hu-worker-c29", 715.0, "hu-worker-c40", 677.0,
-                        "hu-worker-c42", 674.0, "hu-worker-c43", 692.0
+                        "hu-worker-c29", 712.0, "hu-worker-c40", 678.0,
+                        "hu-worker-c23", 713.0, "hu-worker-c43", 696.0
                 );
                 scheduler = new BenchmarkTaremaScheduler(execution, client, namespace, config,
                         cpuEstimations, memEstimations, seqReadEstimations, seqWriteEstimations,
