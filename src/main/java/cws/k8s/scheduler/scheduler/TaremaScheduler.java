@@ -79,7 +79,7 @@ public abstract class TaremaScheduler extends Scheduler {
     }
 
     @Override
-    public ScheduleObject getTaskNodeAlignment(final List<Task> unscheduledTasks, final Map<NodeWithAlloc, Requirements> availableByNode) {
+    public ScheduleObject getTaskNodeAlignment(List<Task> unscheduledTasks, final Map<NodeWithAlloc, Requirements> availableByNode) {
         long start = System.currentTimeMillis();
         if (traceEnabled) {
             int index = 1;
@@ -89,6 +89,7 @@ public abstract class TaremaScheduler extends Scheduler {
         }
 
         List<NodeTaskAlignment> alignments;
+        unscheduledTasks = new ArrayList<>(unscheduledTasks);
         if (!nodeLabelsReady()) {
             minInputPrioritize.sortTasks(unscheduledTasks);
             alignments = randomNodeAssign.getTaskNodeAlignment(unscheduledTasks, availableByNode);
