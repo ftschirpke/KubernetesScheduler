@@ -7,7 +7,7 @@ import cws.k8s.scheduler.scheduler.nodeassign.NodeAssign;
 import cws.k8s.scheduler.scheduler.nodeassign.RandomNodeAssign;
 import cws.k8s.scheduler.scheduler.prioritize.MinInputPrioritize;
 import cws.k8s.scheduler.scheduler.prioritize.Prioritize;
-import cws.k8s.scheduler.scheduler.prioritize.RankMinPrioritize;
+import cws.k8s.scheduler.scheduler.prioritize.RankMaxPrioritize;
 import cws.k8s.scheduler.util.NodeTaskAlignment;
 import lombok.extern.slf4j.Slf4j;
 
@@ -21,7 +21,7 @@ public abstract class TaremaScheduler extends Scheduler {
     private final Map<String, Integer> abstractTaskScheduleCounts = new HashMap<>();
 
     private final Prioritize minInputPrioritize = new MinInputPrioritize();
-    private final Prioritize minRankPrioritize = new RankMinPrioritize();
+    private final Prioritize rankMaxPrioritize = new RankMaxPrioritize();
     private final NodeAssign randomNodeAssign = new RandomNodeAssign();
 
     // nodes available to this execution (may not be the whole cluster)
@@ -72,7 +72,7 @@ public abstract class TaremaScheduler extends Scheduler {
                 .flatMap(Collection::stream)
                 .toList();
 
-        minRankPrioritize.sortTasks(prioritizedTasks);
+        rankMaxPrioritize.sortTasks(prioritizedTasks);
         unscheduledTasks.removeAll(prioritizedTasks);
         return prioritizedTasks;
     }
@@ -96,7 +96,7 @@ public abstract class TaremaScheduler extends Scheduler {
             // first schedule tasks we don't know much about yet
             alignments = alignUsingLabels(prioritizedTasks, availableByNode);
             // then schedule the rest
-            minRankPrioritize.sortTasks(unscheduledTasks);
+            rankMaxPrioritize.sortTasks(unscheduledTasks);
             alignments.addAll(alignUsingLabels(unscheduledTasks, availableByNode));
         }
 
@@ -141,7 +141,7 @@ public abstract class TaremaScheduler extends Scheduler {
                 }
             } else {
                 // Tarema approach: prioritize nodes with the least label difference
-                // and most powerful group (or most available resources) as a tiebreaker
+                // and most powerful group as first tiebreaker and most available resources as second tiebreaker
                 Integer lowestLabelDiff = null;
                 int highestSpeed = -1;
                 double highestScore = 0.0;
