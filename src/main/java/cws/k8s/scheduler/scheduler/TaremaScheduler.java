@@ -89,7 +89,7 @@ public abstract class TaremaScheduler extends Scheduler {
         }
 
         List<NodeTaskAlignment> alignments;
-        unscheduledTasks = new ArrayList<>(unscheduledTasks);
+        unscheduledTasks = new ArrayList<>(unscheduledTasks); // copy to avoid modifying the original list
         if (!nodeLabelsReady()) {
             minInputPrioritize.sortTasks(unscheduledTasks);
             alignments = randomNodeAssign.getTaskNodeAlignment(unscheduledTasks, availableByNode);

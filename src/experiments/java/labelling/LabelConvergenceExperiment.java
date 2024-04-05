@@ -66,6 +66,7 @@ public class LabelConvergenceExperiment {
                             singlePointClusterScore, fullString, writeState);
                 }
             }
+            break;
         }
     }
 
@@ -91,10 +92,18 @@ public class LabelConvergenceExperiment {
                     counts.get(task).merge(node, 1, Integer::sum);
                 }
         );
+        int totalMax = 0;
+        int totalMin = 40;
         log.info("{} {}", experimentName, label);
         for (String task : counts.keySet()) {
-            log.info("{} ({})", counts.get(task), task);
+            // log.info("{} ({})", counts.get(task), task);
+            int min = counts.get(task).values().stream().min(Integer::compareTo).orElse(0);
+            totalMin = Math.min(totalMin, min);
+            int max = counts.get(task).values().stream().max(Integer::compareTo).orElse(0);
+            totalMax = Math.max(totalMax, max);
         }
+        log.info("Total min: {}, Total max: {}", totalMin, totalMax);
+        log.info("Abstract task count: {}", counts.size());
        // experiment.setApproaches(target, nodeWeight, higherIsBetter, singlePointClusterScore);
        // experiment.run();
     }
