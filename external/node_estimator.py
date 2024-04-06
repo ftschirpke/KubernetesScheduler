@@ -1,4 +1,5 @@
 import json
+import math
 import sys
 
 from abc import ABC
@@ -94,4 +95,6 @@ class Line:
         """
         self_avg = self.avg_on_interval(interval)
         other_avg = other.avg_on_interval(interval)
+        if not math.isfinite(self_avg) or not math.isfinite(other_avg) or self_avg == 0 or other_avg == 0:
+            return None
         return self_avg / other_avg

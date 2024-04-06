@@ -98,10 +98,9 @@ class TransitiveNodeEstimator(NodeEstimator):
         self.lines_to_update.add((task, node))
 
     def _update_lines(self) -> None:
-        # TODO: remove these assertions:
+        wanted_shape = (self.node_count(), self.node_count())
         assert set(self.ratio_matrices_by_task.keys()) == set(self.tasks)
         assert set(self.weight_matrices_by_task.keys()) == set(self.tasks)
-        wanted_shape = (self.node_count(), self.node_count())
         for mat in self.ratio_matrices_by_task.values():
             assert mat.shape == wanted_shape
         for mat in self.weight_matrices_by_task.values():
@@ -122,7 +121,8 @@ class TransitiveNodeEstimator(NodeEstimator):
             weighted_ratios_summed += np.multiply(ratio_matrix, weight_matrix)
             weights_summed += weight_matrix
 
-        assert np.all((weights_summed != 0) == self.comparison_possible)  # TODO: check assertion (important for division below)
+        assert np.all((weights_summed != 0) == self.comparison_possible)
+
         adjusted_weights = weights_summed + (1 - self.comparison_possible)
         return np.divide(weighted_ratios_summed, adjusted_weights)
 
@@ -130,12 +130,8 @@ class TransitiveNodeEstimator(NodeEstimator):
         task_data = self.data[self.data[TASK] == task]
         data = task_data[task_data[NODE] == node]
 
-        # TODO: remove assertion and move if statement to the beginning
         assert self.data_counts[task][node] == len(data)
         assert self.data_counts[task][node] >= 2
-        # TODO: remove if statement
-        # if self.data_counts[task][node] < 2:
-        #     return False
 
         model = BayesianRidge(alpha_init=1, lambda_init=0.001)
         x = data[FEATURE].values.reshape(-1, 1)
@@ -178,6 +174,9 @@ class TransitiveNodeEstimator(NodeEstimator):
                 continue
 
             ratio = node_line.compare_on_interval(other_node_line, intersect_range)
+            if ratio is None:
+                continue
+
             ratio = np.log(ratio)
             weight = (node_data_count - 1) * (other_node_data_count - 1)
 
@@ -193,7 +192,6 @@ class TransitiveNodeEstimator(NodeEstimator):
         vertice_count = distances.shape[0]
         distances[distances == 0] = vertice_count
 
-        # TODO: remove these assertions
         assert vertice_count == self.node_count()
         assert distances.shape == (vertice_count, vertice_count)
 
@@ -239,8 +237,8 @@ class TransitiveNodeEstimator(NodeEstimator):
                 ratios_calculated[start][dest] = True
                 ratios_calculated[dest][start] = True
 
-        # TODO: remove this assertion
         assert np.all(ratios_calculated)
+
         return accumulated_ratios
 
     def ranking(self) -> Dict:
