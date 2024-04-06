@@ -105,8 +105,9 @@ public class TraceStorage {
         wcharValues.add(trace.getMemoryValue("wchar"));
         readBytesValues.add(trace.getMemoryValue("read_bytes"));
         writeBytesValues.add(trace.getMemoryValue("write_bytes"));
-        long realtime = trace.getMemoryValue("realtime");
-        realtimeValues.add(Math.max(realtime, 1));
+        long realtime = trace.getTimeValue("realtime");
+        long nonZeroRealtime = Math.max(realtime, 1L);
+        realtimeValues.add(nonZeroRealtime);
         return Optional.of(index);
     }
 
