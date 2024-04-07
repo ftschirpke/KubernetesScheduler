@@ -22,6 +22,7 @@ public class FairAssign extends NodeAssign {
         LinkedList<NodeTaskAlignment> alignment = new LinkedList<>();
         for ( final Task task : unscheduledTasks ) {
             final PodWithAge pod = task.getPod();
+            log.info("Pod: " + pod.getName() + " Requested Resources: " + pod.getRequest() );
             NodeWithAlloc bestNode = null;
             Double bestScore = null;
             final List<Double> costs = new LinkedList<>();
@@ -50,11 +51,7 @@ public class FairAssign extends NodeAssign {
                 traceRecord.setSchedulerNodesCost( costs );
                 alignment.add( new NodeTaskAlignment( bestNode, task ) );
                 availableByNode.get( bestNode ).subFromThis( pod.getRequest() );
-                log.info("Pod: " + pod.getName() + " Requested Resources: " + pod.getRequest()
-                        + "--> " + bestNode.getName() );
-            } else {
-                log.info("Pod: " + pod.getName() + " Requested Resources: " + pod.getRequest()
-                        + "--- not assigned" );
+                log.info( "--> " + bestNode.getName() );
             }
         }
         return alignment;

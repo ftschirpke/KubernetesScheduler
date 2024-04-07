@@ -18,6 +18,7 @@ public class RandomNodeAssign extends NodeAssign {
         final ArrayList<Map.Entry<NodeWithAlloc, Requirements>> entries = new ArrayList<>( availableByNode.entrySet() );
         for ( final Task task : unscheduledTasks ) {
             final PodWithAge pod = task.getPod();
+            log.info("Pod: " + pod.getName() + " Requested Resources: " + pod.getRequest() );
             Collections.shuffle( entries );
             boolean assigned = false;
             int nodesTried = 0;
@@ -27,8 +28,7 @@ public class RandomNodeAssign extends NodeAssign {
                     nodesTried++;
                     alignment.add(new NodeTaskAlignment( node, task));
                     availableByNode.get( node ).subFromThis(pod.getRequest());
-                    log.info("Pod: " + pod.getName() + " Requested Resources: " + pod.getRequest()
-                            + "--> " + node.getName() );
+                    log.info("--> " + node.getName());
                     assigned = true;
                     task.getTraceRecord().foundAlignment();
                     break;
@@ -37,8 +37,6 @@ public class RandomNodeAssign extends NodeAssign {
             task.getTraceRecord().setSchedulerNodesTried( nodesTried );
             if ( !assigned ) {
                 log.trace( "No node with enough resources for {}", pod.getName() );
-                log.info("Pod: " + pod.getName() + " Requested Resources: " + pod.getRequest()
-                        + "--- not assigned" );
             }
         }
         return alignment;

@@ -162,7 +162,6 @@ public class KubernetesClient extends DefaultKubernetesClient  {
                     //todo deal with error
                     break;
                 case MODIFIED:
-                    // log.info("Node {} was modified", node.getMetadata().getName());
                     //todo deal with changed state
                     break;
                 default: log.warn("No implementation for {}", action);
