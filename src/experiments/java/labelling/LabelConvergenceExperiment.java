@@ -10,12 +10,9 @@ import labelling.approaches.OnlineTaremaApproach;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.ArrayUtils;
 
-import java.io.File;
+import java.io.*;
 import java.text.SimpleDateFormat;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
-import java.util.Set;
+import java.util.*;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -48,10 +45,14 @@ public class LabelConvergenceExperiment {
             System.exit(1);
         }
 
-        double[] scores = {0.5, 0.66, 0.8, 0.9};
+        double[] scores = {0, 0.5, 0.66, 0.8, 0.9};
+
         TraceField<Long> target = LongField.REALTIME;
-        Function<String, Float> nodeWeight = LotaruTraces.nodeCpus::get;
         boolean higherIsBetter = false;
+
+        Function<String, Float> nodeWeight = LotaruTraces.nodeCpus::get; // CPU weight
+        // Function<String, Float> nodeWeight = LotaruTraces.nodeGigabyteMemory::get; // Memory weight
+        // Function<String, Float> nodeWeight = s -> 1.0f; // Equal weight
 
         boolean writeState = true;
 
@@ -82,6 +83,32 @@ public class LabelConvergenceExperiment {
                                                                      boolean writeState) {
         LabelConvergenceExperiment experiment = new LabelConvergenceExperiment(experimentName, label, dirString, writeState);
         experiment.initializeTraces(lotaruTracesDir);
+
+        /*
+        Map<String, Map<String, Integer>> counts = new HashMap<>();
+        experiment.lotaruTraces.allLinesByTask(true).forEach(
+                line -> {
+                    String task = experiment.lotaruTraces.getFromLine("Task", line);
+                    String node = experiment.lotaruTraces.getFromLine("Machine", line);
+                    if (!counts.containsKey(task)) {
+                        counts.put(task, new HashMap<>());
+                    }
+                    counts.get(task).merge(node, 1, Integer::sum);
+                }
+        );
+        int totalMax = 0;
+        int totalMin = 40;
+        log.info("{} {}", experimentName, label);
+        for (String task : counts.keySet()) {
+            // log.info("{} ({})", counts.get(task), task);
+            int min = counts.get(task).values().stream().min(Integer::compareTo).orElse(0);
+            totalMin = Math.min(totalMin, min);
+            int max = counts.get(task).values().stream().max(Integer::compareTo).orElse(0);
+            totalMax = Math.max(totalMax, max);
+        }
+        log.info("Total min: {}, Total max: {}", totalMin, totalMax);
+        log.info("Abstract task count: {}", counts.size());
+        */
         experiment.setApproaches(target, nodeWeight, higherIsBetter, singlePointClusterScore);
         experiment.run();
     }
@@ -146,6 +173,9 @@ public class LabelConvergenceExperiment {
             String nodeName = LotaruTraces.machineNames.get(machineName);
             TaskConfig config = lotaruTraces.taskConfigFromLine(line);
             TraceRecord trace = lotaruTraces.taskTraceFromLine(line);
+            if (writeState) {
+                writeDataLine(line);
+            }
             for (Approach approach : approaches) {
                 approach.onTaskTermination(trace, config, nodeName);
                 approach.recalculate();
@@ -154,14 +184,44 @@ public class LabelConvergenceExperiment {
                 }
             }
         });
-        log.info("Finished running approaches.");
-        for (Approach approach : approaches) {
-            System.out.printf("----- Approach %s -----\n", approach.getName());
-            approach.printNodeLabels();
+        // log.info("Finished running approaches.");
+        // for (Approach approach : approaches) {
+        //     System.out.printf("----- Approach %s -----\n", approach.getName());
+        //     approach.printNodeLabels();
+        // }
+        // for (Approach approach : approaches) {
+        //     System.out.printf("----- Approach %s -----\n", approach.getName());
+        //     approach.printTaskLabels();
+        // }
+    }
+
+    void writeDataLine(final String[] line) {
+        File dir = new File(experimentDir);
+        if (!dir.exists()) {
+            boolean success = dir.mkdirs();
+            if (!success) {
+                log.error("Could not create directory {}", dir);
+                System.exit(1);
+            }
         }
-        for (Approach approach : approaches) {
-            System.out.printf("----- Approach %s -----\n", approach.getName());
-            approach.printTaskLabels();
+
+        boolean newlyCreated;
+        File rawDataFile = new File(String.format("%s/raw_data.csv", experimentDir));
+        try {
+            newlyCreated = rawDataFile.createNewFile();
+        } catch (IOException e) {
+            throw new RuntimeException(e);
         }
+        try (PrintWriter writer = new PrintWriter(new FileOutputStream(rawDataFile, true))) {
+            if (newlyCreated) {
+                String header = String.join(",", lotaruTraces.csvHeader);
+                writer.println(header);
+            }
+            writer.println(String.join(",", line));
+        } catch (FileNotFoundException e) {
+            log.error("File {} does not exist", rawDataFile);
+            System.exit(1);
+        }
+
     }
 }
