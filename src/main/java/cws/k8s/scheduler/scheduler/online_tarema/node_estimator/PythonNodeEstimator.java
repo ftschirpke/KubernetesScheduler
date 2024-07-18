@@ -6,7 +6,7 @@ import java.io.*;
 import java.util.*;
 
 @Slf4j
-public class PythonNodeEstimator implements NodeEstimator {
+public class PythonNodeEstimator<T extends Number> implements NodeEstimator<T> {
 
     private final BufferedReader stdoutReader;
     private final BufferedReader stderrReader;
@@ -33,7 +33,7 @@ public class PythonNodeEstimator implements NodeEstimator {
         }
     }
 
-    public synchronized <T extends Number> void addDataPoint(String nodeName, String taskName,
+    public synchronized void addDataPoint(String nodeName, String taskName,
                                                              long rchar, T targetValue) {
         if (!nodeNames.contains(nodeName)) {
             log.error("Ignore attempt to add data point for unknown node: {}", nodeName);
