@@ -3,7 +3,6 @@ package cws.k8s.scheduler.scheduler.online_tarema.node_estimator;
 import cws.k8s.scheduler.util.Tuple;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.lang3.NotImplementedException;
 import org.apache.commons.math3.stat.regression.SimpleRegression;
 
 import java.util.*;
@@ -13,6 +12,7 @@ import java.util.stream.IntStream;
 @Slf4j
 public class TaskSpecificNodeEstimator<T extends Number> implements NodeEstimator<T> {
     private final Set<String> nodeNames;
+    private final long taskSpecificThreshold;
 
     record DataPoint<T extends Number>(String node, String task, long rchar, T target) {
     }
@@ -34,8 +34,9 @@ public class TaskSpecificNodeEstimator<T extends Number> implements NodeEstimato
     private final Map<String, QuadraticMatrix<Integer>> weightMatricesByTask = new HashMap<>(initialTaskCapacity);
     private QuadraticMatrix<Boolean> comparisonPossible = null;
 
-    public TaskSpecificNodeEstimator(Set<String> nodeNames) {
+    public TaskSpecificNodeEstimator(Set<String> nodeNames, long taskSpecificThreshold) {
         this.nodeNames = nodeNames;
+        this.taskSpecificThreshold = taskSpecificThreshold;
     }
 
     private void addNode(String node) {
@@ -161,10 +162,8 @@ public class TaskSpecificNodeEstimator<T extends Number> implements NodeEstimato
         for (Tuple<String, String> toUpdate : linesToUpdate) {
             String task = toUpdate.getA();
             String node = toUpdate.getB();
-            boolean lineChanged = updateLine(task, node);
-            if (lineChanged) {
-                updateRatios(task, node);
-            }
+            updateLine(task, node);
+            updateRatios(task, node);
         }
         linesToUpdate.clear();
     }
@@ -175,12 +174,8 @@ public class TaskSpecificNodeEstimator<T extends Number> implements NodeEstimato
         QuadraticMatrix<Integer> weightsSummed = new QuadraticMatrix<>(size, 0);
         for (Map.Entry<String, QuadraticMatrix<Double>> entry : ratioMatricesByTask.entrySet()) {
             String task = entry.getKey();
-            System.out.println("RATIO MATRIX");
             QuadraticMatrix<Double> ratioMatrix = entry.getValue();
-            ratioMatrix.print();
-            System.out.println("WEIGHT MATRIX");
             QuadraticMatrix<Integer> weightMatrix = weightMatricesByTask.get(task);
-            weightMatrix.print();
             assert ratioMatrix.getDimension() == size;
             assert weightMatrix.getDimension() == size;
             for (int i = 0; i < size; i++) {
@@ -218,7 +213,7 @@ public class TaskSpecificNodeEstimator<T extends Number> implements NodeEstimato
         return weightedRatiosSummed;
     }
 
-    private boolean updateLine(String task, String node) {
+    private void updateLine(String task, String node) {
         List<DataPoint<T>> relevantData = data.stream()
                 .filter(dataPoint -> dataPoint.task.equals(task) && dataPoint.node.equals(node))
                 .toList();
@@ -226,11 +221,6 @@ public class TaskSpecificNodeEstimator<T extends Number> implements NodeEstimato
         int dataCount = dataCounts.get(task).get(node);
         assert dataCount == relevantData.size();
         assert dataCount >= 2;
-
-        Line previousLine = null;
-        if (lines.containsKey(task)) {
-            previousLine = lines.get(task).get(node);
-        }
 
         SimpleRegression model = new SimpleRegression(true);
         for (DataPoint<T> dataPoint : relevantData) {
@@ -242,7 +232,7 @@ public class TaskSpecificNodeEstimator<T extends Number> implements NodeEstimato
                 .min().orElseThrow();
         double xMax = relevantData.stream()
                 .mapToDouble(dataPoint -> (double) dataPoint.rchar)
-                .min().orElseThrow();
+                .max().orElseThrow();
         Range newRange = new Range(xMin, xMax);
         if (!ranges.containsKey(task)) {
             ranges.put(task, new HashMap<>(initialNodeCapacity));
@@ -256,8 +246,6 @@ public class TaskSpecificNodeEstimator<T extends Number> implements NodeEstimato
             lines.put(task, new HashMap<>(initialNodeCapacity));
         }
         lines.get(task).put(node, newLine);
-
-        return previousLine == null || previousLine.equals(newLine);
     }
 
     private boolean isInvalidData(int nodeDataCount, Line nodeLine, Range nodeRange) {
@@ -291,10 +279,14 @@ public class TaskSpecificNodeEstimator<T extends Number> implements NodeEstimato
                 continue;
             }
             Double ratio = nodeLine.compareOnInterval(otherNodeLine, intersectRange);
-            if (ratio == null) {
+            if (ratio == null || ratio <= 0.0) {
                 continue;
             }
-            double logRatio = Math.log(ratio);
+            Double logRatio = Math.log(ratio);
+            if (logRatio.isInfinite() || logRatio.isNaN()) {
+                continue;
+            }
+
             int weight = (nodeDataCount - 1) * (otherNodeDataCount - 1);
 
             taskRatioMatrix.set(i, j, logRatio);
@@ -411,21 +403,27 @@ public class TaskSpecificNodeEstimator<T extends Number> implements NodeEstimato
         if (fullCopy == null) {
             return null;
         }
-        System.out.println("TRANSITIVE MATRIX");
-        fullCopy.print();
         List<Double> means = geometricMeansOfLogarithmicRows(fullCopy);
         return IntStream.range(0, nodes.size())
                 .mapToObj(i -> new Tuple<>(nodes.get(i), means.get(i)))
                 .collect(Collectors.toMap(Tuple::getA, Tuple::getB));
     }
 
-    public NodeRankings ranking() {
+    @Override
+    public NodeRankings taskSpecificEstimations() {
+        if (nodes.size() < nodeNames.size()) {
+            return null; // we don't have data for all expected nodes
+        }
         Map<String, Double> generalRanking = nodeEstimationsFromMatrix(accumulatedRatios());
         if (generalRanking == null) {
             return null;
         }
         Map<String, Map<String, Double>> taskSpecificRankings = new HashMap<>();
         for (String task : tasks) {
+            long sampleCount = data.stream().filter(sample -> Objects.equals(sample.task, task)).count();
+            if (sampleCount < taskSpecificThreshold) {
+                continue;
+            }
             Map<String, Double> taskSpecificRanking = nodeEstimationsFromMatrix(ratioMatricesByTask.get(task));
             if (taskSpecificRanking != null) {
                 taskSpecificRankings.put(task, taskSpecificRanking);
@@ -436,14 +434,12 @@ public class TaskSpecificNodeEstimator<T extends Number> implements NodeEstimato
 
     @Override
     public Map<String, Double> estimations() {
+        if (nodes.size() < nodeNames.size()) {
+            return null; // we don't have data for all expected nodes
+        }
         return nodeEstimationsFromMatrix(accumulatedRatios());
     }
 
-    public record NodeRankings(
-            Map<String, Double> generalRanking,
-            Map<String, Map<String, Double>> taskSpecificRankings
-    ) {
-    }
 
     public static class QuadraticMatrix<D> {
         @Getter
@@ -457,19 +453,6 @@ public class TaskSpecificNodeEstimator<T extends Number> implements NodeEstimato
                 this.data.add(new_row);
             }
             this.dimension = size;
-        }
-
-        void print() {
-            System.out.println("[");
-            for (List<D> row : data) {
-                System.out.print("    ");
-                for (D el : row) {
-                    System.out.print(el);
-                    System.out.print(", ");
-                }
-                System.out.println();
-            }
-            System.out.println("]");
         }
 
         D get(int i, int j) {

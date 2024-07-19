@@ -10,6 +10,7 @@ import cws.k8s.scheduler.scheduler.nextflow_trace.TraceStorage;
 import cws.k8s.scheduler.scheduler.online_tarema.*;
 import cws.k8s.scheduler.scheduler.online_tarema.node_estimator.NodeEstimator;
 import cws.k8s.scheduler.scheduler.online_tarema.node_estimator.PythonNodeEstimator;
+import cws.k8s.scheduler.scheduler.online_tarema.node_estimator.TaskSpecificNodeEstimator;
 import lombok.extern.slf4j.Slf4j;
 
 import java.util.HashMap;
@@ -18,8 +19,7 @@ import java.util.Optional;
 import java.util.function.Function;
 
 @Slf4j
-public class OnlineTaremaScheduler extends TaremaScheduler {
-    private static final String SCRIPT_PATH = "external/transitive_node_estimator.py";
+public class TaskSpecificOnlineTaremaScheduler extends TaremaScheduler {
     private static final LongField TARGET = LongField.REALTIME;
 
     private final TraceStorage traces = new TraceStorage();
@@ -28,18 +28,18 @@ public class OnlineTaremaScheduler extends TaremaScheduler {
 
     private final LabelsLogger labelsLogger;
 
-    public OnlineTaremaScheduler(String execution,
-                                 KubernetesClient client,
-                                 String namespace,
-                                 SchedulerConfig config) {
+    public TaskSpecificOnlineTaremaScheduler(String execution,
+                                             KubernetesClient client,
+                                             String namespace,
+                                             SchedulerConfig config) {
         this(execution, client, namespace, config, SilhouetteScore.DEFAULT_ONE_POINT_CLUSTER_SCORE);
     }
 
-    public OnlineTaremaScheduler(String execution,
-                                 KubernetesClient client,
-                                 String namespace,
-                                 SchedulerConfig config,
-                                 double singlePointClusterScore) {
+    public TaskSpecificOnlineTaremaScheduler(String execution,
+                                             KubernetesClient client,
+                                             String namespace,
+                                             SchedulerConfig config,
+                                             double singlePointClusterScore) {
         super(execution, client, namespace, config);
         if (config.workDir == null) {
             String workDir;
@@ -54,8 +54,8 @@ public class OnlineTaremaScheduler extends TaremaScheduler {
             this.labelsLogger = new LabelsLogger(config.workDir);
         }
 
-        NodeEstimator estimator = new PythonNodeEstimator(SCRIPT_PATH, usedNodes);
-        this.nodeLabeller = new NodeLabeller(estimator, false, singlePointClusterScore);
+        NodeEstimator<Long> estimator = new TaskSpecificNodeEstimator<>(usedNodes, 30L);
+        this.nodeLabeller = new NodeLabeller<>(estimator, false, singlePointClusterScore);
     }
 
     @Override
@@ -65,7 +65,7 @@ public class OnlineTaremaScheduler extends TaremaScheduler {
             // should not happen because TaremaScheduler checks for this already
             return Integer.MAX_VALUE;
         }
-        Integer nodeLabel = nodeLabeller.getLabels().get(nodeName);
+        Integer nodeLabel = nodeLabeller.getLabelsForTask(taskName).get(nodeName);
         if (nodeLabel == null) {
             // prioritize nodes we don't know about yet
             return 0;
@@ -80,7 +80,7 @@ public class OnlineTaremaScheduler extends TaremaScheduler {
         if (!nodeLabelsReady()) {
             return 0;
         }
-        return nodeLabeller.getLabels().get(nodeName);
+        return nodeLabeller.getLabelsForTask(task).get(nodeName);
     }
 
     @Override
@@ -130,6 +130,7 @@ public class OnlineTaremaScheduler extends TaremaScheduler {
             labelsLogger.writeNodeEstimations(nodeLabeller.getEstimations(), TARGET.toString(), traces.size());
         }
         if (labelsChanged) {
+            // TODO: logging for task-specific labels
             log.info("New Node Labels calculated: {}", nodeLabeller.getLabels());
             labelsLogger.writeNodeLabels(nodeLabeller.getLabels(), TARGET.toString(), traces.size());
         }

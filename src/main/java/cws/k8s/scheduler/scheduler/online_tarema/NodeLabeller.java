@@ -5,6 +5,7 @@ import cws.k8s.scheduler.scheduler.online_tarema.node_estimator.NodeEstimator;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.math3.ml.clustering.CentroidCluster;
+import org.apache.commons.math3.ml.clustering.Clusterable;
 
 import java.util.Comparator;
 import java.util.HashMap;
@@ -14,21 +15,31 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 @Slf4j
-public class NodeLabeller {
+public class NodeLabeller<T extends Number> {
     private final boolean higherIsBetter;
     @Getter
     private final Map<String, Integer> labels = new HashMap<>();
+    private final Map<String, Map<String, Integer>> taskSpecificLabels = new HashMap<>();
     @Getter
     private Map<String, Double> estimations = new HashMap<>();
+    @Getter
+    private Map<String, Map<String, Double>> taskSpecificEstimations = new HashMap<>();
     private final SilhouetteScore<PointWithName<String>> silhouetteScore;
     @Getter
-    private final NodeEstimator estimator;
+    private final NodeEstimator<T> estimator;
 
-    public NodeLabeller(NodeEstimator estimator, boolean higherIsBetter) {
+    public NodeLabeller(NodeEstimator<T> estimator, boolean higherIsBetter) {
         this(estimator, higherIsBetter, SilhouetteScore.DEFAULT_ONE_POINT_CLUSTER_SCORE);
     }
 
-    public NodeLabeller(NodeEstimator estimator, boolean higherIsBetter, double singlePointClusterScore) {
+    public Map<String, Integer> getLabelsForTask(String taskName) {
+        if (taskSpecificLabels.containsKey(taskName)) {
+            return taskSpecificLabels.get(taskName);
+        }
+        return labels;
+    }
+
+    public NodeLabeller(NodeEstimator<T> estimator, boolean higherIsBetter, double singlePointClusterScore) {
         this.estimator = estimator;
         this.silhouetteScore = new SilhouetteScore<>(singlePointClusterScore);
         this.higherIsBetter = higherIsBetter;
@@ -41,8 +52,8 @@ public class NodeLabeller {
     public static Map<String, Integer> labelOnce(Map<String, Double> estimations,
                                                  boolean higherIsBetter,
                                                  double singlePointClusterScore) {
-        ConstantEstimator estimator = new ConstantEstimator(estimations);
-        NodeLabeller labeller = new NodeLabeller(estimator, higherIsBetter, singlePointClusterScore);
+        ConstantEstimator<Double> estimator = new ConstantEstimator<>(estimations);
+        NodeLabeller<Double> labeller = new NodeLabeller<>(estimator, higherIsBetter, singlePointClusterScore);
         labeller.updateLabels();
         return labeller.getLabels();
     }
@@ -51,7 +62,11 @@ public class NodeLabeller {
         return labels.values().stream().max(Integer::compareTo).orElse(null);
     }
 
-    private Map<String, Integer> calculateNewLabels() {
+    private static Map<String, Integer> calculateNewLabels(
+            Map<String, Double> estimations,
+            SilhouetteScore<PointWithName<String>> silhouetteScore,
+            boolean higherIsBetter
+    ) {
         List<PointWithName<String>> points = estimations.entrySet().stream()
                 .map(entry -> new PointWithName<>(entry.getKey(), entry.getValue()))
                 .toList();
@@ -80,7 +95,7 @@ public class NodeLabeller {
                 .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
     }
 
-    public <T extends Number> void addDataPoint(String node, String taskName, long rchar, T targetValue) {
+    public void addDataPoint(String node, String taskName, long rchar, T targetValue) {
         estimator.addDataPoint(node, taskName, rchar, targetValue);
     }
 
@@ -93,30 +108,44 @@ public class NodeLabeller {
     }
 
     private boolean retrieveNewEstimations() {
-        Map<String, Double> newEstimations = estimator.estimations();
+        NodeEstimator.NodeRankings newRankings = estimator.taskSpecificEstimations();
+        Map<String, Double> newEstimations = newRankings.generalRanking();
+        Map<String, Map<String, Double>> newTaskSpecific = newRankings.taskSpecificRankings();
         if (newEstimations == null) {
             if (!estimations.isEmpty()) {
                 log.error("Estimator did not return new estimations; using old ones");
             }
             return false;
         }
-        if (newEstimations.equals(estimations)) {
+        if (newEstimations.equals(estimations) && newTaskSpecific.equals(taskSpecificEstimations)) {
             return false;
         }
         estimations = newEstimations;
+        taskSpecificEstimations = newTaskSpecific;
         return true;
     }
 
     private boolean recalculateLabelsFromEstimations() {
-        Map<String, Integer> newLabels = calculateNewLabels();
+        Map<String, Integer> newGeneralLabels = calculateNewLabels(estimations, silhouetteScore, higherIsBetter);
+        Map<String, Map<String, Integer>> newTaskSpecificLabels = taskSpecificEstimations.entrySet().stream()
+                .map(entry -> {
+                    String task = entry.getKey();
+                    Map<String, Integer> labels = calculateNewLabels(entry.getValue(), silhouetteScore, higherIsBetter);
+                    return Map.entry(task, labels);
+                })
+                .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+
         boolean labelsChanged;
         synchronized (labels) {
-            labelsChanged = !newLabels.equals(labels);
-            if (!newLabels.keySet().containsAll(labels.keySet())) {
-                log.error("New node labels do not contain all nodes; lost nodes");
-                labels.clear();
+            synchronized (taskSpecificLabels) {
+                labelsChanged = !newGeneralLabels.equals(labels) || !newTaskSpecificLabels.equals(taskSpecificLabels);
+                if (!newGeneralLabels.keySet().containsAll(labels.keySet())) {
+                    log.error("New node labels do not contain all nodes; lost nodes");
+                    throw new IllegalStateException("New node labels do not contain all nodes; lost nodes");
+                }
+                labels.putAll(newGeneralLabels);
+                taskSpecificLabels.putAll(newTaskSpecificLabels);
             }
-            labels.putAll(newLabels);
         }
         return labelsChanged;
     }

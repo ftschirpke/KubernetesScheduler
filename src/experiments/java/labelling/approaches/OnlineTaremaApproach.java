@@ -95,7 +95,7 @@ public class OnlineTaremaApproach<T extends Number & Comparable<T>> implements A
                                                                                         boolean higherIsBetter,
                                                                                         double singlePointClusterScore,
                                                                                         Set<String> nodes) {
-        NodeEstimator<S> transitiveEstimator = new TaskSpecificNodeEstimator<>(nodes);
+        NodeEstimator<S> transitiveEstimator = new TaskSpecificNodeEstimator<>(nodes, 30L);
         return new OnlineTaremaApproach<>(
                 target, nodeWeight, higherIsBetter, singlePointClusterScore,
                 transitiveEstimator, "JavaOnlineTarema"

@@ -149,7 +149,7 @@ public class BenchmarkTaremaScheduler extends TaremaScheduler {
     }
 
     @Override
-    int nodeSpeed(NodeWithAlloc node) {
+    int nodeSpeedForTask(NodeWithAlloc node, String task) {
         String nodeName = node.getName();
         return cpuNodeLabels.get(nodeName)
                 + memoryNodeLabels.get(nodeName)

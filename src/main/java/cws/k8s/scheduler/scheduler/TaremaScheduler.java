@@ -30,7 +30,7 @@ public abstract class TaremaScheduler extends Scheduler {
 
     abstract int nodeTaskLabelDifference(NodeWithAlloc node, String taskName);
 
-    abstract int nodeSpeed(NodeWithAlloc node);
+    abstract int nodeSpeedForTask(NodeWithAlloc node, String taskName);
 
     abstract boolean taskIsKnown(String taskName);
 
@@ -102,7 +102,7 @@ public abstract class TaremaScheduler extends Scheduler {
                     if (canSchedulePodOnNode(requirements, pod, node)) {
                         triedOnNodes++;
                         final int labelDifference = nodeTaskLabelDifference(node, abstractTaskName);
-                        final int speed = nodeSpeed(node);
+                        final int speed = nodeSpeedForTask(node, abstractTaskName);
                         final double score = highestResourceAvailabilityScore(task, node, requirements);
                         if (lowestLabelDiff == null
                                 || labelDifference < lowestLabelDiff
