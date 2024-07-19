@@ -3,14 +3,16 @@ package cws.k8s.scheduler.scheduler.online_tarema.node_estimator;
 import cws.k8s.scheduler.util.Tuple;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.lang3.NotImplementedException;
+import org.apache.commons.math3.stat.regression.SimpleRegression;
 
 import java.util.*;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 @Slf4j
 public class TaskSpecificNodeEstimator<T extends Number> implements NodeEstimator<T> {
-    private int estimationsCounter = 0;
-    private Set<String> nodeNames = new HashSet<>();
+    private final Set<String> nodeNames;
 
     record DataPoint<T extends Number>(String node, String task, long rchar, T target) {
     }
@@ -39,7 +41,7 @@ public class TaskSpecificNodeEstimator<T extends Number> implements NodeEstimato
     private void addNode(String node) {
         nodes.add(node);
         for (QuadraticMatrix<Double> matrix : ratioMatricesByTask.values()) {
-            matrix.addDimensionWithValue(0.0);
+            matrix.addDimensionWithValue(null);
         }
         for (QuadraticMatrix<Integer> matrix : weightMatricesByTask.values()) {
             matrix.addDimensionWithValue(0);
@@ -49,13 +51,26 @@ public class TaskSpecificNodeEstimator<T extends Number> implements NodeEstimato
         } else {
             comparisonPossible.addDimensionWithValue(false);
         }
+        for (String task : tasks) {
+            if (dataCounts.get(task).containsKey(node)) {
+                throw new IllegalStateException("Newly added node should not exist yet.");
+            }
+            dataCounts.get(task).put(node, 0);
+        }
     }
 
     private void addTask(String task) {
         tasks.add(task);
         int nodeCount = nodes.size();
-        ratioMatricesByTask.put(task, new QuadraticMatrix<>(nodeCount, 0.0));
+        ratioMatricesByTask.put(task, new QuadraticMatrix<>(nodeCount, null));
         weightMatricesByTask.put(task, new QuadraticMatrix<>(nodeCount, 0));
+        if (dataCounts.containsKey(task)) {
+            throw new IllegalStateException("Newly added task should not exist yet.");
+        }
+        dataCounts.put(task, new HashMap<>(initialNodeCapacity));
+        for (String node : nodes) {
+            dataCounts.get(task).put(node, 0);
+        }
     }
 
     public synchronized void addDataPoint(String nodeName, String taskName, long rchar, T targetValue) {
@@ -64,9 +79,10 @@ public class TaskSpecificNodeEstimator<T extends Number> implements NodeEstimato
             return;
         }
         DataPoint<T> sample = new DataPoint<>(nodeName, taskName, rchar, targetValue);
-        if (dataCounts.get(taskName).get(nodeName) > 0) {
+        if (dataCounts.containsKey(taskName) && dataCounts.get(taskName).containsKey(nodeName)
+                && dataCounts.get(taskName).get(nodeName) > 0) {
             addSample(sample);
-        } else if (unprocessedSamples.get(taskName).containsKey(nodeName)) {
+        } else if (unprocessedSamples.containsKey(taskName) && unprocessedSamples.get(taskName).containsKey(nodeName)) {
             Set<T> uniqueTargetValues = unprocessedSamples.get(taskName).get(nodeName)
                     .stream()
                     .map(dataPoint -> dataPoint.target)
@@ -82,8 +98,39 @@ public class TaskSpecificNodeEstimator<T extends Number> implements NodeEstimato
                     addSample(olderSample);
                 }
                 addSample(sample);
+            } else {
+                olderSamples.add(sample);
+                if (!readySampleGroups.containsKey(taskName)) {
+                    readySampleGroups.put(taskName, new HashMap<>(initialNodeCapacity));
+                }
+                readySampleGroups.get(taskName).put(nodeName, olderSamples);
+                if (readySampleGroups.get(taskName).size() > 1) {
+                    boolean anyNodeAlreadyKnown = false;
+                    for (String node : readySampleGroups.get(taskName).keySet()) {
+                        if (nodes.contains(node)) {
+                            anyNodeAlreadyKnown = true;
+                            break;
+                        }
+                    }
+                    if (anyNodeAlreadyKnown || nodes.isEmpty()) {
+                        for (List<DataPoint<T>> sampleGroup : readySampleGroups.remove(taskName).values()) {
+                            for (DataPoint<T> sampleToAdd : sampleGroup) {
+                                addSample(sampleToAdd);
+                            }
+                        }
+                    }
+                }
             }
+        } else {
+            List<DataPoint<T>> singleItemList = new ArrayList<>();
+            singleItemList.add(sample);
+            if (!unprocessedSamples.containsKey(taskName)) {
+                unprocessedSamples.put(taskName, new HashMap<>(initialNodeCapacity));
+            }
+            unprocessedSamples.get(taskName).put(nodeName, singleItemList);
+            return;
         }
+        updateLines();
     }
 
     private void addSample(DataPoint<T> sample) {
@@ -100,6 +147,17 @@ public class TaskSpecificNodeEstimator<T extends Number> implements NodeEstimato
 
     private void updateLines() {
         int size = nodes.size();
+
+        Set<String> taskSet = new HashSet<>(tasks);
+        assert ratioMatricesByTask.keySet().equals(taskSet);
+        for (QuadraticMatrix<Double> ratioMatrix : ratioMatricesByTask.values()) {
+            assert ratioMatrix.getDimension() == size;
+        }
+        assert weightMatricesByTask.keySet().equals(taskSet);
+        for (QuadraticMatrix<Integer> weightMatrix : weightMatricesByTask.values()) {
+            assert weightMatrix.getDimension() == size;
+        }
+
         for (Tuple<String, String> toUpdate : linesToUpdate) {
             String task = toUpdate.getA();
             String node = toUpdate.getB();
@@ -112,38 +170,280 @@ public class TaskSpecificNodeEstimator<T extends Number> implements NodeEstimato
     }
 
     public QuadraticMatrix<Double> accumulatedRatios() {
-        // TODO
+        int size = nodes.size();
+        QuadraticMatrix<Double> weightedRatiosSummed = new QuadraticMatrix<>(size, 0.0);
+        QuadraticMatrix<Integer> weightsSummed = new QuadraticMatrix<>(size, 0);
+        for (Map.Entry<String, QuadraticMatrix<Double>> entry : ratioMatricesByTask.entrySet()) {
+            String task = entry.getKey();
+            System.out.println("RATIO MATRIX");
+            QuadraticMatrix<Double> ratioMatrix = entry.getValue();
+            ratioMatrix.print();
+            System.out.println("WEIGHT MATRIX");
+            QuadraticMatrix<Integer> weightMatrix = weightMatricesByTask.get(task);
+            weightMatrix.print();
+            assert ratioMatrix.getDimension() == size;
+            assert weightMatrix.getDimension() == size;
+            for (int i = 0; i < size; i++) {
+                for (int j = 0; j < size; j++) {
+                    int weight = weightMatrix.get(i, j);
+                    Double ratio = ratioMatrix.get(i, j);
+                    if (weight == 0 && ratio == null) {
+                        continue;
+                    } else if (weight == 0 || ratio == null) {
+                        throw new IllegalStateException("Weight should be zero iff ratio is unknown (null).");
+                    }
+                    double previousRatioSum = weightedRatiosSummed.get(i, j);
+                    weightedRatiosSummed.set(i, j, previousRatioSum + weight * ratio); // M[i,j] += w * ratio
+                    int previousWeightSum = weightsSummed.get(i, j);
+                    weightsSummed.set(i, j, previousWeightSum + weight); // W[i,j] += w
+                }
+            }
+        }
+        for (int i = 0; i < size; i++) {
+            for (int j = 0; j < size; j++) {
+                int weight = weightsSummed.get(i, j);
+                if (weight == 0) {
+                    if (comparisonPossible.get(i, j)) {
+                        throw new IllegalStateException("Weight cannot be zero if comparison is possible.");
+                    }
+                    continue;
+                }
+                if (!comparisonPossible.get(i, j)) {
+                    throw new IllegalStateException("Weight cannot be non-zero if comparison is not possible.");
+                }
+                double previousRatioSum = weightedRatiosSummed.get(i, j);
+                weightedRatiosSummed.set(i, j, previousRatioSum / (double) weight);
+            }
+        }
+        return weightedRatiosSummed;
     }
 
     private boolean updateLine(String task, String node) {
-        // TODO
+        List<DataPoint<T>> relevantData = data.stream()
+                .filter(dataPoint -> dataPoint.task.equals(task) && dataPoint.node.equals(node))
+                .toList();
+
+        int dataCount = dataCounts.get(task).get(node);
+        assert dataCount == relevantData.size();
+        assert dataCount >= 2;
+
+        Line previousLine = null;
+        if (lines.containsKey(task)) {
+            previousLine = lines.get(task).get(node);
+        }
+
+        SimpleRegression model = new SimpleRegression(true);
+        for (DataPoint<T> dataPoint : relevantData) {
+            model.addData(dataPoint.rchar, dataPoint.target.doubleValue());
+        }
+
+        double xMin = relevantData.stream()
+                .mapToDouble(dataPoint -> (double) dataPoint.rchar)
+                .min().orElseThrow();
+        double xMax = relevantData.stream()
+                .mapToDouble(dataPoint -> (double) dataPoint.rchar)
+                .min().orElseThrow();
+        Range newRange = new Range(xMin, xMax);
+        if (!ranges.containsKey(task)) {
+            ranges.put(task, new HashMap<>(initialNodeCapacity));
+        }
+        ranges.get(task).put(node, newRange);
+
+        double coef = model.getSlope();
+        double intercept = model.getIntercept();
+        Line newLine = new Line(coef, intercept);
+        if (!lines.containsKey(task)) {
+            lines.put(task, new HashMap<>(initialNodeCapacity));
+        }
+        lines.get(task).put(node, newLine);
+
+        return previousLine == null || previousLine.equals(newLine);
+    }
+
+    private boolean isInvalidData(int nodeDataCount, Line nodeLine, Range nodeRange) {
+        return nodeDataCount < 2 || nodeLine == null || nodeRange == null || nodeRange.width() <= 0;
     }
 
     private void updateRatios(String task, String node) {
-        // TODO
+        int i = nodes.indexOf(node);
+        int nodeDataCount = dataCounts.get(task).get(node);
+        Line nodeLine = lines.get(task).get(node);
+        Range nodeRange = ranges.get(task).get(node);
+        if (isInvalidData(nodeDataCount, nodeLine, nodeRange)) {
+            return;
+        }
+
+        QuadraticMatrix<Double> taskRatioMatrix = ratioMatricesByTask.get(task);
+        QuadraticMatrix<Integer> taskWeightMatrix = weightMatricesByTask.get(task);
+        for (int j = 0; j < nodes.size(); j++) {
+            String otherNode = nodes.get(j);
+            if (i == j) {
+                continue;
+            }
+            int otherNodeDataCount = dataCounts.get(task).get(otherNode);
+            Line otherNodeLine = lines.get(task).get(otherNode);
+            Range otherNodeRange = ranges.get(task).get(otherNode);
+            if (isInvalidData(otherNodeDataCount, otherNodeLine, otherNodeRange)) {
+                continue;
+            }
+            Range intersectRange = nodeRange.intersection(otherNodeRange);
+            if (intersectRange.width() <= 0) {
+                continue;
+            }
+            Double ratio = nodeLine.compareOnInterval(otherNodeLine, intersectRange);
+            if (ratio == null) {
+                continue;
+            }
+            double logRatio = Math.log(ratio);
+            int weight = (nodeDataCount - 1) * (otherNodeDataCount - 1);
+
+            taskRatioMatrix.set(i, j, logRatio);
+            taskRatioMatrix.set(j, i, -logRatio);
+            taskWeightMatrix.set(i, j, weight);
+            taskWeightMatrix.set(j, i, weight);
+            comparisonPossible.set(i, j, true);
+            comparisonPossible.set(j, i, true);
+        }
     }
 
-    private Tuple<QuadraticMatrix<Double>, QuadraticMatrix<Double>> floydWarshall() {
-        // TODO
+    private static Tuple<QuadraticMatrix<Integer>, QuadraticMatrix<Integer>> floydWarshall(QuadraticMatrix<Double> matrix) {
+        int size = matrix.getDimension();
+        QuadraticMatrix<Integer> distances = new QuadraticMatrix<>(size, 1);
+        for (int i = 0; i < size; i++) {
+            for (int j = 0; j < size; j++) {
+                if (matrix.get(i, j) == null) {
+                    distances.set(i, j, size);
+                }
+            }
+        }
+        QuadraticMatrix<Integer> predecessors = new QuadraticMatrix<>(size, 0);
+        for (int start = 0; start < size; start++) {
+            for (int end = 0; end < size; end++) {
+                predecessors.set(start, end, start);
+            }
+        }
+        for (int maxNode = 0; maxNode < size; maxNode++) {
+            for (int src = 0; src < size; src++) {
+                for (int dst = 0; dst < size; dst++) {
+                    int srcDist = distances.get(src, maxNode);
+                    int dstDist = distances.get(maxNode, dst);
+                    if (distances.get(src, dst) > srcDist + dstDist) {
+                        distances.set(src, dst, srcDist + dstDist);
+                        predecessors.set(src, dst, predecessors.get(maxNode, dst));
+                    }
+                }
+            }
+        }
+        return new Tuple<>(distances, predecessors);
     }
 
-    public QuadraticMatrix<Double> transitiveRatios() {
-        // TODO
+    private static QuadraticMatrix<Double> transitiveRatios(QuadraticMatrix<Double> ratioMatrix) {
+        int size = ratioMatrix.getDimension();
+        // create a copy of the input matrix
+        QuadraticMatrix<Double> transitiveRatios = new QuadraticMatrix<>(size, 0.0);
+        for (int i = 0; i < size; i++) {
+            for (int j = 0; j < size; j++) {
+                transitiveRatios.set(i, j, ratioMatrix.get(i, j));
+            }
+        }
+        // initialize helper matrices
+        Tuple<QuadraticMatrix<Integer>, QuadraticMatrix<Integer>> tup = floydWarshall(ratioMatrix);
+        QuadraticMatrix<Integer> distances = tup.getA();
+        QuadraticMatrix<Integer> predecessors = tup.getB();
+        for (int i = 0; i < size; i++) {
+            for (int j = 0; j < size; j++) {
+                if (distances.get(i, j) >= size) {
+                    return null;
+                }
+            }
+        }
+        QuadraticMatrix<Boolean> ratiosCalculated = new QuadraticMatrix<>(size, true);
+        for (int i = 0; i < size; i++) {
+            for (int j = 0; j < size; j++) {
+                if (i == j) {
+                    continue;
+                }
+                if (ratioMatrix.get(i, j) == null) {
+                    ratiosCalculated.set(i, j, false); // set null values to "need to be calculated"
+                }
+            }
+        }
+        // transitively fill in the copy matrix
+        Stack<Integer> todoStack = new Stack<>();
+        for (int src = 0; src < size; src++) {
+            for (int dst = 0; dst < size; dst++) {
+                if (ratiosCalculated.get(src, dst)) {
+                    continue;
+                }
+                while (!ratiosCalculated.get(src, dst)) {
+                    todoStack.add(dst);
+                    dst = predecessors.get(src, dst);
+                }
+                double val = transitiveRatios.get(src, dst);
+                while (!todoStack.empty()) {
+                    int middle = dst;
+                    dst = todoStack.pop();
+                    val += transitiveRatios.get(middle, dst);
+                    transitiveRatios.set(src, dst, val);
+                    transitiveRatios.set(dst, src, -val);
+                    ratiosCalculated.set(src, dst, true);
+                    ratiosCalculated.set(dst, src, true);
+                }
+            }
+        }
+        for (int i = 0; i < size; i++) {
+            for (int j = 0; j < size; j++) {
+                assert ratiosCalculated.get(i, j);
+            }
+        }
+        return transitiveRatios;
+    }
+
+    private static List<Double> geometricMeansOfLogarithmicRows(QuadraticMatrix<Double> logMatrix) {
+        return logMatrix.data.stream()
+                .map(logRow -> logRow.stream().mapToDouble(Double::doubleValue).average().orElseThrow())
+                .map(Math::exp)
+                .toList();
+    }
+
+    private Map<String, Double> nodeEstimationsFromMatrix(QuadraticMatrix<Double> logMatrix) {
+        QuadraticMatrix<Double> fullCopy = transitiveRatios(logMatrix);
+        if (fullCopy == null) {
+            return null;
+        }
+        System.out.println("TRANSITIVE MATRIX");
+        fullCopy.print();
+        List<Double> means = geometricMeansOfLogarithmicRows(fullCopy);
+        return IntStream.range(0, nodes.size())
+                .mapToObj(i -> new Tuple<>(nodes.get(i), means.get(i)))
+                .collect(Collectors.toMap(Tuple::getA, Tuple::getB));
     }
 
     public NodeRankings ranking() {
-        // TODO
+        Map<String, Double> generalRanking = nodeEstimationsFromMatrix(accumulatedRatios());
+        if (generalRanking == null) {
+            return null;
+        }
+        Map<String, Map<String, Double>> taskSpecificRankings = new HashMap<>();
+        for (String task : tasks) {
+            Map<String, Double> taskSpecificRanking = nodeEstimationsFromMatrix(ratioMatricesByTask.get(task));
+            if (taskSpecificRanking != null) {
+                taskSpecificRankings.put(task, taskSpecificRanking);
+            }
+        }
+        return new NodeRankings(generalRanking, taskSpecificRankings);
     }
 
     @Override
     public Map<String, Double> estimations() {
-        return ranking().generalRanking;
+        return nodeEstimationsFromMatrix(accumulatedRatios());
     }
 
-    public static record NodeRankings(
+    public record NodeRankings(
             Map<String, Double> generalRanking,
             Map<String, Map<String, Double>> taskSpecificRankings
-    ) {}
+    ) {
+    }
 
     public static class QuadraticMatrix<D> {
         @Getter
@@ -153,9 +453,23 @@ public class TaskSpecificNodeEstimator<T extends Number> implements NodeEstimato
         QuadraticMatrix(int size, D value) {
             this.data = new ArrayList<>(size);
             for (int i = 0; i < size; i++) {
-                List<D> new_row = new ArrayList<>(Collections.nCopies(dimension, value));
+                List<D> new_row = new ArrayList<>(Collections.nCopies(size, value));
                 this.data.add(new_row);
             }
+            this.dimension = size;
+        }
+
+        void print() {
+            System.out.println("[");
+            for (List<D> row : data) {
+                System.out.print("    ");
+                for (D el : row) {
+                    System.out.print(el);
+                    System.out.print(", ");
+                }
+                System.out.println();
+            }
+            System.out.println("]");
         }
 
         D get(int i, int j) {
@@ -170,15 +484,18 @@ public class TaskSpecificNodeEstimator<T extends Number> implements NodeEstimato
             if (data.size() != dimension || data.stream().anyMatch(l -> l.size() != dimension)) {
                 throw new IllegalStateException("Dimension should always match up with list sizes.");
             }
+            dimension++;
             for (List<D> inner : data) {
                 inner.add(value);
+                assert inner.size() == dimension;
             }
             List<D> new_row = new ArrayList<>(Collections.nCopies(dimension, value));
             data.add(new_row);
+            assert data.size() == dimension;
         }
     }
 
-    private static record Range(double start, double end) {
+    private record Range(double start, double end) {
         double width() {
             return end - start;
         }
@@ -190,12 +507,12 @@ public class TaskSpecificNodeEstimator<T extends Number> implements NodeEstimato
         }
     }
 
-    private static record Line(double coef, double intercept) {
+    private record Line(double coef, double intercept) {
         double evaluate(double x) {
             return coef * x + intercept;
         }
 
-        double avg_on_interval(Range interval) {
+        double avgOnInterval(Range interval) {
             double first = evaluate(interval.start);
             double second = evaluate(interval.end);
             return (first + second) / 2;
@@ -205,9 +522,9 @@ public class TaskSpecificNodeEstimator<T extends Number> implements NodeEstimato
          * Compares two lines on the given interval.
          * Returns the fraction of the average of the self line to the average of the other line.
          */
-        Double compare_on_interval(Line other, Range interval) {
-            double thisAvg = this.avg_on_interval(interval);
-            double otherAvg = other.avg_on_interval(interval);
+        Double compareOnInterval(Line other, Range interval) {
+            double thisAvg = this.avgOnInterval(interval);
+            double otherAvg = other.avgOnInterval(interval);
             if (thisAvg == 0 || otherAvg == 0) {
                 return null;
             }

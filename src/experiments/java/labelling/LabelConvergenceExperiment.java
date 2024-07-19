@@ -144,16 +144,19 @@ public class LabelConvergenceExperiment {
         }
         Set<String> nodes = nodeStream.collect(Collectors.toSet());
 
-        approaches.add(new BenchmarkTaremaApproach(singlePointClusterScore));
-        approaches.add(
-                OnlineTaremaApproach.naive(target, nodeWeight, higherIsBetter, singlePointClusterScore, nodes)
-        );
+        // approaches.add(new BenchmarkTaremaApproach(singlePointClusterScore));
+        // approaches.add(
+        //         OnlineTaremaApproach.naive(target, nodeWeight, higherIsBetter, singlePointClusterScore, nodes)
+        // );
         approaches.add(
                 OnlineTaremaApproach.transitive(target, nodeWeight, higherIsBetter, singlePointClusterScore, nodes)
         );
         approaches.add(
-                OnlineTaremaApproach.tarema(target, nodeWeight, LotaruTraces.cpuBenchmarks, true, singlePointClusterScore)
+                OnlineTaremaApproach.java(target, nodeWeight, higherIsBetter, singlePointClusterScore, nodes)
         );
+        // approaches.add(
+        //         OnlineTaremaApproach.tarema(target, nodeWeight, LotaruTraces.cpuBenchmarks, true, singlePointClusterScore)
+        // );
     }
 
     void run() {

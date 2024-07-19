@@ -12,6 +12,7 @@ import cws.k8s.scheduler.scheduler.online_tarema.TaskLabeller;
 import cws.k8s.scheduler.scheduler.online_tarema.node_estimator.ConstantEstimator;
 import cws.k8s.scheduler.scheduler.online_tarema.node_estimator.NodeEstimator;
 import cws.k8s.scheduler.scheduler.online_tarema.node_estimator.PythonNodeEstimator;
+import cws.k8s.scheduler.scheduler.online_tarema.node_estimator.TaskSpecificNodeEstimator;
 import labelling.LotaruTraces;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
@@ -70,7 +71,7 @@ public class OnlineTaremaApproach<T extends Number & Comparable<T>> implements A
                                                                                    boolean higherIsBetter,
                                                                                    double singlePointClusterScore,
                                                                                    Set<String> nodes) {
-        NodeEstimator naiveEstimator = new PythonNodeEstimator(naiveEstimatorPath, nodes);
+        NodeEstimator<S> naiveEstimator = new PythonNodeEstimator<>(naiveEstimatorPath, nodes);
         return new OnlineTaremaApproach<>(
                 target, nodeWeight, higherIsBetter, singlePointClusterScore,
                 naiveEstimator, "NaiveOnlineTarema"
@@ -82,10 +83,22 @@ public class OnlineTaremaApproach<T extends Number & Comparable<T>> implements A
                                                                                         boolean higherIsBetter,
                                                                                         double singlePointClusterScore,
                                                                                         Set<String> nodes) {
-        NodeEstimator transitiveEstimator = new PythonNodeEstimator(smartEstimatorPath, nodes);
+        NodeEstimator<S> transitiveEstimator = new PythonNodeEstimator<>(smartEstimatorPath, nodes);
         return new OnlineTaremaApproach<>(
                 target, nodeWeight, higherIsBetter, singlePointClusterScore,
                 transitiveEstimator, "TransitiveOnlineTarema"
+        );
+    }
+
+    public static <S extends Number & Comparable<S>> OnlineTaremaApproach<S> java(TraceField<S> target,
+                                                                                        Function<String, Float> nodeWeight,
+                                                                                        boolean higherIsBetter,
+                                                                                        double singlePointClusterScore,
+                                                                                        Set<String> nodes) {
+        NodeEstimator<S> transitiveEstimator = new TaskSpecificNodeEstimator<>(nodes);
+        return new OnlineTaremaApproach<>(
+                target, nodeWeight, higherIsBetter, singlePointClusterScore,
+                transitiveEstimator, "JavaOnlineTarema"
         );
     }
 
@@ -94,7 +107,7 @@ public class OnlineTaremaApproach<T extends Number & Comparable<T>> implements A
                                                                                     Map<String, Double> estimations,
                                                                                     boolean higherIsBetter,
                                                                                     double singlePointClusterScore) {
-        NodeEstimator constantEstimator = new ConstantEstimator(estimations);
+        NodeEstimator<S> constantEstimator = new ConstantEstimator<>(estimations);
         return new OnlineTaremaApproach<>(
                 target, nodeWeight, higherIsBetter, singlePointClusterScore,
                 constantEstimator, "SimplifiedTarema"
