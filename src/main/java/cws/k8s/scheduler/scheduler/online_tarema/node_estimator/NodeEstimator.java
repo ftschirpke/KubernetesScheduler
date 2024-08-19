@@ -12,7 +12,7 @@ public interface NodeEstimator<T extends Number> {
         return new NodeRankings(estimations(), new HashMap<>());
     }
 
-    public record NodeRankings(
+    record NodeRankings(
             Map<String, Double> generalRanking,
             Map<String, Map<String, Double>> taskSpecificRankings
     ) {

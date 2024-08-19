@@ -12,7 +12,7 @@ import java.util.stream.IntStream;
 @Slf4j
 public class TaskSpecificNodeEstimator<T extends Number> implements NodeEstimator<T> {
     private final Set<String> nodeNames;
-    private final long taskSpecificThreshold;
+    private final Long taskSpecificThreshold;
 
     record DataPoint<T extends Number>(String node, String task, long rchar, T target) {
     }
@@ -34,7 +34,7 @@ public class TaskSpecificNodeEstimator<T extends Number> implements NodeEstimato
     private final Map<String, QuadraticMatrix<Integer>> weightMatricesByTask = new HashMap<>(initialTaskCapacity);
     private QuadraticMatrix<Boolean> comparisonPossible = null;
 
-    public TaskSpecificNodeEstimator(Set<String> nodeNames, long taskSpecificThreshold) {
+    public TaskSpecificNodeEstimator(Set<String> nodeNames, Long taskSpecificThreshold) {
         this.nodeNames = nodeNames;
         this.taskSpecificThreshold = taskSpecificThreshold;
     }
@@ -43,6 +43,8 @@ public class TaskSpecificNodeEstimator<T extends Number> implements NodeEstimato
         nodes.add(node);
         for (QuadraticMatrix<Double> matrix : ratioMatricesByTask.values()) {
             matrix.addDimensionWithValue(null);
+            int last = matrix.dimension - 1;
+            matrix.set(last, last, 0.0);
         }
         for (QuadraticMatrix<Integer> matrix : weightMatricesByTask.values()) {
             matrix.addDimensionWithValue(0);
@@ -63,7 +65,11 @@ public class TaskSpecificNodeEstimator<T extends Number> implements NodeEstimato
     private void addTask(String task) {
         tasks.add(task);
         int nodeCount = nodes.size();
-        ratioMatricesByTask.put(task, new QuadraticMatrix<>(nodeCount, null));
+        QuadraticMatrix<Double> taskRatioMatrix = new QuadraticMatrix<>(nodeCount, null);
+        for (int i = 0; i < nodeCount; i++) {
+            taskRatioMatrix.set(i, i, 0.0);
+        }
+        ratioMatricesByTask.put(task, taskRatioMatrix);
         weightMatricesByTask.put(task, new QuadraticMatrix<>(nodeCount, 0));
         if (dataCounts.containsKey(task)) {
             throw new IllegalStateException("Newly added task should not exist yet.");
@@ -183,7 +189,9 @@ public class TaskSpecificNodeEstimator<T extends Number> implements NodeEstimato
                     int weight = weightMatrix.get(i, j);
                     Double ratio = ratioMatrix.get(i, j);
                     if (weight == 0 && ratio == null) {
-                        continue;
+                        continue; // should have weight zero, if ratio is unknown
+                    } else if (i == j) {
+                        continue; // diagonal should have weight zero
                     } else if (weight == 0 || ratio == null) {
                         throw new IllegalStateException("Weight should be zero iff ratio is unknown (null).");
                     }
@@ -371,11 +379,16 @@ public class TaskSpecificNodeEstimator<T extends Number> implements NodeEstimato
                     todoStack.add(dst);
                     dst = predecessors.get(src, dst);
                 }
-                double val = transitiveRatios.get(src, dst);
+                Double val = transitiveRatios.get(src, dst);
                 while (!todoStack.empty()) {
                     int middle = dst;
                     dst = todoStack.pop();
                     val += transitiveRatios.get(middle, dst);
+                    if (val.isNaN() || val.isInfinite()) {
+                        // at least one value cannot be properly constructed
+                        // TODO: find a better solution than aborting
+                        return null;
+                    }
                     transitiveRatios.set(src, dst, val);
                     transitiveRatios.set(dst, src, -val);
                     ratiosCalculated.set(src, dst, true);
@@ -412,16 +425,18 @@ public class TaskSpecificNodeEstimator<T extends Number> implements NodeEstimato
     @Override
     public NodeRankings taskSpecificEstimations() {
         if (nodes.size() < nodeNames.size()) {
-            return null; // we don't have data for all expected nodes
+            return new NodeRankings(null, null); // we don't have data for all expected nodes
         }
         Map<String, Double> generalRanking = nodeEstimationsFromMatrix(accumulatedRatios());
         if (generalRanking == null) {
-            return null;
+            return new NodeRankings(null, null);
         }
         Map<String, Map<String, Double>> taskSpecificRankings = new HashMap<>();
+
+        long threshold = taskSpecificThreshold != null ? taskSpecificThreshold : 3L * nodeNames.size();
         for (String task : tasks) {
-            long sampleCount = data.stream().filter(sample -> Objects.equals(sample.task, task)).count();
-            if (sampleCount < taskSpecificThreshold) {
+            long sampleCount = data.stream().filter(sample -> sample.task.equals(task)).count();
+            if (sampleCount < threshold) {
                 continue;
             }
             Map<String, Double> taskSpecificRanking = nodeEstimationsFromMatrix(ratioMatricesByTask.get(task));
