@@ -11,29 +11,27 @@ import org.apache.commons.lang3.ArrayUtils;
 
 import java.io.*;
 import java.text.SimpleDateFormat;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
-import java.util.Set;
+import java.util.*;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 @Slf4j
-public class TaskSpecificExperiment {
+public class TaskSpecificExperiment<T extends Number & Comparable<T>> {
     static String defaultPath = "../Lotaru-traces/traces";
     static boolean includeLocal = true;
 
     String experimentName;
     String experimentLabel;
     LotaruTraces lotaruTraces = new LotaruTraces();
-    List<Approach> approaches = new ArrayList<>();
+    List<OnlineTaremaApproach<T>> approaches = new ArrayList<>();
     String experimentDir;
+    String task;
     final boolean writeState;
 
     public static void main(String[] args) {
         if (args.length != 3) {
-            log.error("Usage: LabelConvergenceExperiment /path/to/Lotaru-traces/traces <experiment> <label>");
+            log.error("Usage: TaskSpecificExperiment /path/to/Lotaru-traces/traces <experiment> <label>");
             log.info("Defaulting to path: {}, experiment: {}, label: {}",
                     defaultPath, LotaruTraces.experiments[0], LotaruTraces.labels[0]);
             args = new String[]{defaultPath, LotaruTraces.experiments[0], LotaruTraces.labels[0]};
@@ -47,7 +45,7 @@ public class TaskSpecificExperiment {
             System.exit(1);
         }
 
-        double[] scores = {0, 0.5, 0.66, 0.8, 0.9};
+        double singlePointClusterScore = 0.8;
 
         TraceField<Long> target = LongField.REALTIME;
         boolean higherIsBetter = false;
@@ -61,30 +59,39 @@ public class TaskSpecificExperiment {
         SimpleDateFormat formatter = new SimpleDateFormat("yyyyMMdd-HHmmss");
         String timeString = formatter.format(System.currentTimeMillis());
 
-        for (double singlePointClusterScore : scores) {
-            String localStr = includeLocal ? "local" : "nolocal";
-            String fullString = String.format("%s/%s-%d", timeString, localStr, (int) (singlePointClusterScore * 100.0));
-
-            for (String experimentName : LotaruTraces.experiments) {
-                for (String label : LotaruTraces.labels) {
-                    experiment(args[0], experimentName, label, target, nodeWeight, higherIsBetter,
-                            singlePointClusterScore, fullString, writeState);
+        for (String experimentName : LotaruTraces.experiments) {
+            for (String label : LotaruTraces.labels) {
+                String lotaruTracesDir = args[0];
+                LotaruTraces traces = new LotaruTraces();
+                File tracesDirectory = new File(lotaruTracesDir);
+                try {
+                    traces.readTraces(tracesDirectory, experimentName, label);
+                } catch (Exception e) {
+                    log.info("Error occured: {}", e.getMessage());
+                    log.error("File {} does not exist", lotaruTracesDir);
+                    System.exit(1);
+                }
+                for (String task : traces.taskNames) {
+                    experiment(traces, experimentName, label, target, nodeWeight, higherIsBetter,
+                            singlePointClusterScore, timeString, writeState, task);
                 }
             }
         }
     }
 
-    public static <T extends Number & Comparable<T>> void experiment(String lotaruTracesDir,
-                                                                     String experimentName,
-                                                                     String label,
-                                                                     TraceField<T> target,
-                                                                     Function<String, Float> nodeWeight,
-                                                                     boolean higherIsBetter,
-                                                                     double singlePointClusterScore,
-                                                                     String dirString,
-                                                                     boolean writeState) {
-        TaskSpecificExperiment experiment = new TaskSpecificExperiment(experimentName, label, dirString, writeState);
-        experiment.initializeTraces(lotaruTracesDir);
+    public static <S extends Number & Comparable<S>> void experiment(LotaruTraces lotaruTraces,
+                                  String experimentName,
+                                  String label,
+                                  TraceField<S> target,
+                                  Function<String, Float> nodeWeight,
+                                  boolean higherIsBetter,
+                                  double singlePointClusterScore,
+                                  String dirString,
+                                  boolean writeState,
+                                  String task
+    ) {
+        TaskSpecificExperiment<S> experiment = new TaskSpecificExperiment<>(experimentName, label, dirString, writeState, task);
+        experiment.lotaruTraces = lotaruTraces;
 
         /*
         Map<String, Map<String, Integer>> counts = new HashMap<>();
@@ -115,25 +122,15 @@ public class TaskSpecificExperiment {
         experiment.run();
     }
 
-    TaskSpecificExperiment(String experimentName, String experimentLabel, String dirString, boolean writeState) {
+    TaskSpecificExperiment(String experimentName, String experimentLabel, String dirString, boolean writeState, String task) {
         this.experimentName = experimentName;
         this.experimentLabel = experimentLabel;
-        this.experimentDir = String.format("../label-experiments/results/%s/%s/%s", dirString, experimentName, experimentLabel);
+        this.experimentDir = String.format("../task-specific-experiments/%s/%s/%s/%s", dirString, experimentName, experimentLabel, task);
         this.writeState = writeState;
+        this.task = task;
     }
 
-    void initializeTraces(String lotaruTracesDir) {
-        File tracesDirectory = new File(lotaruTracesDir);
-        try {
-            lotaruTraces.readTraces(tracesDirectory, experimentName, experimentLabel);
-        } catch (Exception e) {
-            log.info("Error occured: {}", e.getMessage());
-            log.error("File {} does not exist", lotaruTracesDir);
-            System.exit(1);
-        }
-    }
-
-    <T extends Number & Comparable<T>> void setApproaches(TraceField<T> target,
+    void setApproaches(TraceField<T> target,
                                                           Function<String, Float> nodeWeight,
                                                           boolean higherIsBetter,
                                                           double singlePointClusterScore) {
@@ -150,19 +147,46 @@ public class TaskSpecificExperiment {
         // approaches.add(
         //         OnlineTaremaApproach.naive(target, nodeWeight, higherIsBetter, singlePointClusterScore, nodes)
         // );
+        // approaches.add(
+        //         OnlineTaremaApproach.transitive(target, nodeWeight, higherIsBetter, singlePointClusterScore, nodes)
+        // );
         approaches.add(
-                OnlineTaremaApproach.transitive(target, nodeWeight, higherIsBetter, singlePointClusterScore, nodes)
+                // the task-specific estimator that never uses task-specific labels
+                OnlineTaremaApproach.java(target, nodeWeight, higherIsBetter, singlePointClusterScore, nodes, 10000L)
         );
         approaches.add(
-                OnlineTaremaApproach.java(target, nodeWeight, higherIsBetter, singlePointClusterScore, nodes)
+                // the task-specific estimator that always uses task-specific labels
+                OnlineTaremaApproach.java(target, nodeWeight, higherIsBetter, singlePointClusterScore, nodes, 0L)
         );
         // approaches.add(
         //         OnlineTaremaApproach.tarema(target, nodeWeight, LotaruTraces.cpuBenchmarks, true, singlePointClusterScore)
         // );
     }
 
+    void applyLine(String[] line, boolean write) {
+        String machineName = lotaruTraces.getFromLine("Machine", line);
+        String nodeName = LotaruTraces.machineNames.get(machineName);
+        TaskConfig config = lotaruTraces.taskConfigFromLine(line);
+        TraceRecord trace = lotaruTraces.taskTraceFromLine(line);
+        if (write) {
+            writeDataLine(line);
+        }
+        for (OnlineTaremaApproach<T> approach : approaches) {
+            approach.onTaskTermination(trace, config, nodeName);
+            approach.recalculate();
+            if (write) {
+                boolean taskSpecific = approach.getName().contains("<0>");
+                // HACK: this is very dirty code to check for the task-specific approach
+
+                List<String> onlyTask = List.of(task);
+                approach.writeState(experimentDir, lotaruTraces.taskNames, onlyTask);
+            }
+        }
+
+    }
+
     void run() {
-        Stream<String[]> lines = lotaruTraces.allLinesFairly(includeLocal);
+        List<String[]> lines = lotaruTraces.allLinesFairly(includeLocal).toList();
         if (writeState) {
             File experimentDirectory = new File(experimentDir);
             if (!experimentDirectory.exists()) {
@@ -173,21 +197,19 @@ public class TaskSpecificExperiment {
                 }
             }
         }
-        lines.forEachOrdered(line -> {
-            String machineName = lotaruTraces.getFromLine("Machine", line);
-            String nodeName = LotaruTraces.machineNames.get(machineName);
-            TaskConfig config = lotaruTraces.taskConfigFromLine(line);
-            TraceRecord trace = lotaruTraces.taskTraceFromLine(line);
-            if (writeState) {
-                writeDataLine(line);
-            }
-            for (Approach approach : approaches) {
-                approach.onTaskTermination(trace, config, nodeName);
-                approach.recalculate();
-                if (writeState) {
-                    approach.writeState(experimentDir, lotaruTraces.taskNames);
-                }
-            }
+        log.info("EXPERIMENT: {}, LABEL: {}, TASK: {}", experimentName, experimentLabel, task);
+        // add all values != task name
+        lines.stream().filter(line -> {
+            String taskName = lotaruTraces.getFromLine("Task", line);
+            return !taskName.equals(task);
+        }).forEachOrdered(line -> {
+            applyLine(line, false);
+        });
+        lines.stream().filter(line -> {
+            String taskName = lotaruTraces.getFromLine("Task", line);
+            return taskName.equals(task);
+        }).forEachOrdered(line -> {
+            applyLine(line, writeState);
         });
         // log.info("Finished running approaches.");
         // for (Approach approach : approaches) {

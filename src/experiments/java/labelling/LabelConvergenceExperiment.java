@@ -152,7 +152,7 @@ public class LabelConvergenceExperiment {
                 OnlineTaremaApproach.transitive(target, nodeWeight, higherIsBetter, singlePointClusterScore, nodes)
         );
         approaches.add(
-                OnlineTaremaApproach.java(target, nodeWeight, higherIsBetter, singlePointClusterScore, nodes)
+                OnlineTaremaApproach.java(target, nodeWeight, higherIsBetter, singlePointClusterScore, nodes, null)
         );
         // approaches.add(
         //         OnlineTaremaApproach.tarema(target, nodeWeight, LotaruTraces.cpuBenchmarks, true, singlePointClusterScore)

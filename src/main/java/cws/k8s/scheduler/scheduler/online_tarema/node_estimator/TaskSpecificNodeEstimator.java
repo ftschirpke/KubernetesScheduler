@@ -39,6 +39,11 @@ public class TaskSpecificNodeEstimator<T extends Number> implements NodeEstimato
         this.taskSpecificThreshold = taskSpecificThreshold;
     }
 
+    @Override
+    public String getName() {
+        return String.format("%s<%d>", getClass().getName(), taskSpecificThreshold);
+    }
+
     private void addNode(String node) {
         nodes.add(node);
         for (QuadraticMatrix<Double> matrix : ratioMatricesByTask.values()) {

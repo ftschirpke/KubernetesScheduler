@@ -17,4 +17,8 @@ public interface NodeEstimator<T extends Number> {
             Map<String, Map<String, Double>> taskSpecificRankings
     ) {
     }
+
+    default String getName() {
+        return getClass().getName();
+    }
 }

@@ -31,7 +31,7 @@ import java.util.stream.IntStream;
 public class OnlineTaremaApproach<T extends Number & Comparable<T>> implements Approach {
     private int nextTaskId = 0;
     private final TraceStorage traceStorage = new TraceStorage();
-    private final NodeLabeller nodeLabeller;
+    private final NodeLabeller<T> nodeLabeller;
     private Map<String, Integer> taskLabels = new HashMap<>();
 
     @Getter
@@ -49,9 +49,9 @@ public class OnlineTaremaApproach<T extends Number & Comparable<T>> implements A
                                 Function<String, Float> nodeWeight,
                                 boolean higherIsBetter,
                                 double singlePointClusterScore,
-                                NodeEstimator estimator,
+                                NodeEstimator<T> estimator,
                                 String name) {
-        this.name = String.format("%s(%f)", name, singlePointClusterScore);
+        this.name = String.format("%s(%f)[%s]", name, singlePointClusterScore, estimator.getName());
 
         int secondUppercaseLetter = IntStream.range(1, name.length())
                 .boxed()
@@ -63,7 +63,7 @@ public class OnlineTaremaApproach<T extends Number & Comparable<T>> implements A
         this.nodeWeight = nodeWeight;
         this.silhouetteScore = new SilhouetteScore<>(singlePointClusterScore);
 
-        this.nodeLabeller = new NodeLabeller(estimator, higherIsBetter, singlePointClusterScore);
+        this.nodeLabeller = new NodeLabeller<>(estimator, higherIsBetter, singlePointClusterScore);
     }
 
     public static <S extends Number & Comparable<S>> OnlineTaremaApproach<S> naive(TraceField<S> target,
@@ -94,11 +94,13 @@ public class OnlineTaremaApproach<T extends Number & Comparable<T>> implements A
                                                                                         Function<String, Float> nodeWeight,
                                                                                         boolean higherIsBetter,
                                                                                         double singlePointClusterScore,
-                                                                                        Set<String> nodes) {
-        NodeEstimator<S> transitiveEstimator = new TaskSpecificNodeEstimator<>(nodes, 30L);
+                                                                                        Set<String> nodes,
+                                                                                        long taskSpecificThreshold
+                                                                                  ) {
+        NodeEstimator<S> transitiveEstimator = new TaskSpecificNodeEstimator<>(nodes, taskSpecificThreshold);
         return new OnlineTaremaApproach<>(
                 target, nodeWeight, higherIsBetter, singlePointClusterScore,
-                transitiveEstimator, "JavaOnlineTarema"
+                transitiveEstimator, String.format("Java%dOnlineTarema", taskSpecificThreshold)
         );
     }
 
@@ -183,6 +185,10 @@ public class OnlineTaremaApproach<T extends Number & Comparable<T>> implements A
 
     @Override
     public void writeState(String experimentDir, List<String> taskNames) {
+        writeState(experimentDir, taskNames, taskNames);
+    }
+
+    public void writeState(String experimentDir, List<String> taskNames, List<String> specificTasks) {
         File dir = new File(String.format("%s/%s", experimentDir, shortName));
         if (!dir.exists()) {
             boolean success = dir.mkdirs();
@@ -309,6 +315,74 @@ public class OnlineTaremaApproach<T extends Number & Comparable<T>> implements A
         } catch (FileNotFoundException e) {
             log.error("File {} does not exist", taskLabelFile);
             System.exit(1);
+        }
+
+        if (specificTasks.isEmpty()) {
+            return;
+        }
+
+        for (String taskName : specificTasks) {
+            nodeLabelFile = new File(String.format("%s/%s/%s_node_labels.csv", experimentDir, shortName, taskName));
+            try {
+                newlyCreated = nodeLabelFile.createNewFile();
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+            try (PrintWriter writer = new PrintWriter(new FileOutputStream(nodeLabelFile, true))) {
+                if (newlyCreated) {
+                    for (String nodeName : LotaruTraces.getNodesIncludingLocal()) {
+                        writer.printf("%s,", nodeName);
+                    }
+                    writer.println();
+                }
+                for (String nodeName : LotaruTraces.getNodesIncludingLocal()) {
+                    Map<String, Integer> taskMap = nodeLabeller.getTaskSpecificLabels(taskName);
+                    Integer label = null;
+                    if (taskMap != null) {
+                        label = taskMap.get(nodeName);
+                    }
+                    if (label == null) {
+                        writer.printf("nan,");
+                    } else {
+                        writer.printf("%d,", label);
+                    }
+                }
+                writer.println();
+            } catch (FileNotFoundException e) {
+                log.error("File {} does not exist", nodeLabelFile);
+                System.exit(1);
+            }
+
+            nodeEstimationFile = new File(String.format("%s/%s/%s_node_estimations.csv", experimentDir, shortName, taskName));
+            try {
+                newlyCreated = nodeEstimationFile.createNewFile();
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+            try (PrintWriter writer = new PrintWriter(new FileOutputStream(nodeEstimationFile, true))) {
+                if (newlyCreated) {
+                    for (String nodeName : LotaruTraces.getNodesIncludingLocal()) {
+                        writer.printf("%s,", nodeName);
+                    }
+                    writer.println();
+                }
+                for (String nodeName : LotaruTraces.getNodesIncludingLocal()) {
+                    Map<String, Double> taskMap = nodeLabeller.getTaskSpecificEstimations().get(taskName);
+                    Double estimation = null;
+                    if (taskMap != null) {
+                        estimation = nodeLabeller.getEstimations().get(nodeName);
+                    }
+                    if (estimation == null) {
+                        writer.printf("nan,");
+                    } else {
+                        writer.printf("%f,", estimation);
+                    }
+                }
+                writer.println();
+            } catch (FileNotFoundException e) {
+                log.error("File {} does not exist", nodeEstimationFile);
+                System.exit(1);
+            }
         }
     }
 }
