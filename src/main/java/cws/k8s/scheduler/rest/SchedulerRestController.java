@@ -6,10 +6,7 @@ import cws.k8s.scheduler.dag.InputEdge;
 import cws.k8s.scheduler.dag.Vertex;
 import cws.k8s.scheduler.model.SchedulerConfig;
 import cws.k8s.scheduler.model.TaskConfig;
-import cws.k8s.scheduler.scheduler.BenchmarkTaremaScheduler;
-import cws.k8s.scheduler.scheduler.OnlineTaremaScheduler;
-import cws.k8s.scheduler.scheduler.PrioritizeAssignScheduler;
-import cws.k8s.scheduler.scheduler.Scheduler;
+import cws.k8s.scheduler.scheduler.*;
 import cws.k8s.scheduler.scheduler.nodeassign.FairAssign;
 import cws.k8s.scheduler.scheduler.nodeassign.NodeAssign;
 import cws.k8s.scheduler.scheduler.nodeassign.RandomNodeAssign;
@@ -116,6 +113,9 @@ public class SchedulerRestController {
 
         switch ( strategy.toLowerCase() ){
             case "online_tarema":
+                scheduler = new TaskSpecificOnlineTaremaScheduler(execution, client, namespace, config, 0.8);
+                break;
+            case "deprecated_online_tarema":
                 scheduler = new OnlineTaremaScheduler(execution, client, namespace, config, 0.8);
                 break;
             case "benchmark_tarema":
