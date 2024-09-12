@@ -149,7 +149,7 @@ public class OnlineTaremaApproach<T extends Number & Comparable<T>> implements A
             clusters.add(new Cluster<>());
         }
         for (String nodeName : LotaruTraces.getNodesIncludingLocal()) {
-            Integer label = nodeLabeller.getLabels().get(nodeName);
+            Integer label = (Integer) nodeLabeller.getLabels().get(nodeName);
             if (label == null) {
                 System.out.printf("%s(nan) ", nodeName);
                 continue;
@@ -162,7 +162,7 @@ public class OnlineTaremaApproach<T extends Number & Comparable<T>> implements A
         double score = silhouetteScore.score(clusters);
         System.out.printf(" -> Silhouette score: %f\n", score);
         for (String nodeName : LotaruTraces.getNodesIncludingLocal()) {
-            Double estimation = nodeLabeller.getEstimations().get(nodeName);
+            Double estimation = (Double) nodeLabeller.getEstimations().get(nodeName);
             if (estimation == null) {
                 System.out.printf("%s(nan) ", nodeName);
             } else {
@@ -207,7 +207,7 @@ public class OnlineTaremaApproach<T extends Number & Comparable<T>> implements A
                 writer.println();
             }
             for (String nodeName : LotaruTraces.getNodesIncludingLocal()) {
-                Integer label = nodeLabeller.getLabels().get(nodeName);
+                Integer label = (Integer) nodeLabeller.getLabels().get(nodeName);
                 if (label == null) {
                     writer.printf("nan,");
                 } else {
@@ -234,7 +234,7 @@ public class OnlineTaremaApproach<T extends Number & Comparable<T>> implements A
                 writer.println();
             }
             for (String nodeName : LotaruTraces.getNodesIncludingLocal()) {
-                Double estimation = nodeLabeller.getEstimations().get(nodeName);
+                Double estimation = (Double) nodeLabeller.getEstimations().get(nodeName);
                 if (estimation == null) {
                     writer.printf("nan,");
                 } else {
@@ -267,7 +267,7 @@ public class OnlineTaremaApproach<T extends Number & Comparable<T>> implements A
                     clusters.add(new Cluster<>());
                 }
                 for (String nodeName : LotaruTraces.getNodesIncludingLocal()) {
-                    Integer label = nodeLabeller.getLabels().get(nodeName);
+                    Integer label = (Integer) nodeLabeller.getLabels().get(nodeName);
                     if (label == null) {
                         continue;
                     }
