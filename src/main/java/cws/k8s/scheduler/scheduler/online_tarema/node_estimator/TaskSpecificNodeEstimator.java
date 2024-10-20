@@ -34,7 +34,7 @@ public class TaskSpecificNodeEstimator<T extends Number> implements NodeEstimato
     private final Map<String, QuadraticMatrix<Integer>> weightMatricesByTask = new HashMap<>(initialTaskCapacity);
     private QuadraticMatrix<Boolean> comparisonPossible = null;
 
-    public TaskSpecificNodeEstimator(Set<String> nodeNames, Long taskSpecificThreshold) {
+    public TaskSpecificNodeEstimator(Set<String> nodeNames, long taskSpecificThreshold) {
         this.nodeNames = nodeNames;
         this.taskSpecificThreshold = taskSpecificThreshold;
     }
@@ -433,10 +433,9 @@ public class TaskSpecificNodeEstimator<T extends Number> implements NodeEstimato
         }
         Map<String, Map<String, Double>> taskSpecificRankings = new HashMap<>();
 
-        long threshold = taskSpecificThreshold != null ? taskSpecificThreshold : 3L * nodeNames.size();
         for (String task : tasks) {
             long sampleCount = data.stream().filter(sample -> sample.task.equals(task)).count();
-            if (sampleCount < threshold) {
+            if (sampleCount < taskSpecificThreshold) {
                 continue;
             }
             Map<String, Double> taskSpecificRanking = nodeEstimationsFromMatrix(ratioMatricesByTask.get(task));

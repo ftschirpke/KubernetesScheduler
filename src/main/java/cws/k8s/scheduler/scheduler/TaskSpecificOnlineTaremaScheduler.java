@@ -54,7 +54,7 @@ public class TaskSpecificOnlineTaremaScheduler extends TaremaScheduler {
             this.labelsLogger = new LabelsLogger(config.workDir);
         }
 
-        NodeEstimator<Long> estimator = new TaskSpecificNodeEstimator<>(usedNodes, null);
+        NodeEstimator<Long> estimator = new TaskSpecificNodeEstimator<>(usedNodes, 0L);
         this.nodeLabeller = new NodeLabeller<>(estimator, false, singlePointClusterScore);
     }
 
