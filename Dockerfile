@@ -13,17 +13,7 @@ WORKDIR /app
 
 # install java runtime, python3 and pip
 RUN apt-get update
-RUN apt-get install -y openjdk-17-jre python3 python3-pip python3-venv
-# python virtual environment
-RUN python3 -m venv external/venv
-RUN external/venv/bin/python3 -m pip install --no-cache-dir --upgrade pip setuptools
-# python requirements
-COPY external/requirements.txt external/requirements.txt
-RUN external/venv/bin/python3 -m pip install --no-cache-dir -r external/requirements.txt
-# python node estimator scripts
-COPY external/node_estimator.py external/node_estimator.py
-COPY external/naive_node_estimator.py external/naive_node_estimator.py
-COPY external/transitive_node_estimator.py external/transitive_node_estimator.py
+RUN apt-get install -y openjdk-17-jre
 # copy application jar
 COPY --from=build /build/target/cws-k8s-scheduler*.jar cws-k8s-scheduler.jar
 
