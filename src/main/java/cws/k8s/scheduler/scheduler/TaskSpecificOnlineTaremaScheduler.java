@@ -127,12 +127,22 @@ public class TaskSpecificOnlineTaremaScheduler extends TaremaScheduler {
         boolean labelsChanged = nodeLabeller.updateLabels();
 
         if (!nodeLabeller.getEstimations().isEmpty()) {
-            labelsLogger.writeNodeEstimations(nodeLabeller.getEstimations(), TARGET.toString(), traces.size());
+            labelsLogger.writeNodeEstimations(nodeLabeller.getEstimations(), TARGET.toString(), traces.size(), "overall");
+            for (Map.Entry<String, Map<String, Double>> entry : nodeLabeller.getTaskSpecificEstimations().entrySet()) {
+                String task = entry.getKey();
+                Map<String,Double> taskEstimations = entry.getValue();
+                labelsLogger.writeNodeEstimations(taskEstimations, TARGET.toString(), traces.size(), task);
+            }
         }
         if (labelsChanged) {
             // TODO: logging for task-specific labels
             log.info("New Node Labels calculated: {}", nodeLabeller.getLabels());
-            labelsLogger.writeNodeLabels(nodeLabeller.getLabels(), TARGET.toString(), traces.size());
+            labelsLogger.writeNodeLabels(nodeLabeller.getLabels(), TARGET.toString(), traces.size(), "overall");
+            for (Map.Entry<String, Map<String, Integer>> entry : nodeLabeller.getAllTaskSpecificLabels().entrySet()) {
+                String task = entry.getKey();
+                Map<String,Integer> taskLabels = entry.getValue();
+                labelsLogger.writeNodeLabels(taskLabels, TARGET.toString(), traces.size(), task);
+            }
         }
 
         long endTime = System.currentTimeMillis();

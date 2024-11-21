@@ -32,6 +32,10 @@ public class NodeLabeller<T extends Number> {
         this(estimator, higherIsBetter, SilhouetteScore.DEFAULT_ONE_POINT_CLUSTER_SCORE);
     }
 
+    public Map<String, Map<String, Integer>> getAllTaskSpecificLabels() {
+        return taskSpecificLabels;
+    }
+
     public Map<String, Integer> getTaskSpecificLabels(String taskName) {
         return taskSpecificLabels.get(taskName);
     }

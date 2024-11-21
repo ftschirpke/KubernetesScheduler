@@ -82,6 +82,10 @@ public class LabelsLogger {
     }
 
     private <T> void writeMap(Map<String, T> labels, String target, int iteration, File file) {
+        writeMap(labels, target, iteration, file, null);
+    }
+
+    private <T> void writeMap(Map<String, T> labels, String target, int iteration, File file, String description) {
         if (file == null) {
             return;
         }
@@ -90,6 +94,11 @@ public class LabelsLogger {
         sb.append("\"iteration\": ");
         sb.append(iteration);
         sb.append(", ");
+        if (description != null) {
+            sb.append("\"extra_description\": ");
+            sb.append(description);
+            sb.append(", ");
+        }
         for (Map.Entry<String, T> entry : labels.entrySet()) {
             sb.append('\"');
             sb.append(entry.getKey());
@@ -109,11 +118,19 @@ public class LabelsLogger {
     }
 
     public void writeNodeLabels(Map<String, Integer> labels, String target, int iteration) {
-        writeMap(labels, target, iteration, nodeLabelsFile);
+        writeMap(labels, target, iteration, nodeLabelsFile, null);
+    }
+
+    public void writeNodeLabels(Map<String, Integer> labels, String target, int iteration, String description) {
+        writeMap(labels, target, iteration, nodeLabelsFile, description);
     }
 
     public void writeNodeEstimations(Map<String, Double> estimations, String target, int iteration) {
-        writeMap(estimations, target, iteration, nodeEstimationsFile);
+        writeMap(estimations, target, iteration, nodeEstimationsFile, null);
+    }
+
+    public void writeNodeEstimations(Map<String, Double> estimations, String target, int iteration, String description) {
+        writeMap(estimations, target, iteration, nodeEstimationsFile, description);
     }
 
     public void writeTaskLabels(Map<String, Integer> labels, String target, int iteration) {
