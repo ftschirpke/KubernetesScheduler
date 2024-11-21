@@ -135,7 +135,6 @@ public class TaskSpecificOnlineTaremaScheduler extends TaremaScheduler {
             }
         }
         if (labelsChanged) {
-            // TODO: logging for task-specific labels
             log.info("New Node Labels calculated: {}", nodeLabeller.getLabels());
             labelsLogger.writeNodeLabels(nodeLabeller.getLabels(), TARGET.toString(), traces.size(), "overall");
             for (Map.Entry<String, Map<String, Integer>> entry : nodeLabeller.getAllTaskSpecificLabels().entrySet()) {
